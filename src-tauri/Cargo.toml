@@ -1,0 +1,26 @@
+[package]
+name = "quick_send"
+version = "0.0.0"
+description = "Send files peer to peer"
+authors = ["you"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[build-dependencies]
+tauri-build = { version = "1", features = [] }
+
+[dependencies]
+tauri = { version = "1", features = [ "dialog-open", "shell-open"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+iroh = "0.20.0"
+anyhow = "1.0.86"
+tokio = { version = "1" }
+tokio-util = { version = "0.7" }
+futures-lite = "2.3"
+dirs-next = "2.0.0"
+
+[features]
+# This feature is used for production builds or when a dev server is not specified, DO NOT REMOVE!!
+custom-protocol = ["tauri/custom-protocol"]
