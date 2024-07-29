@@ -155,7 +155,7 @@ async fn get_blob(state: tauri::State<'_, AppState>, get_blob_request: GetBlob) 
         }
         
     }
-    Ok(String::from("Everything OK"))
+    Ok(format!("Files downloaded at {}", output.to_string_lossy()))
 }
 
 
