@@ -7,7 +7,7 @@
   },
   "package": {
     "productName": "quick_send",
-    "version": "0.0.1"
+    "version": "0.0.2"
   },
   "tauri": {
     "allowlist": {
@@ -40,7 +40,7 @@
     "bundle": {
       "active": true,
       "targets": "all",
-      "identifier": "com.quicksend.dev",
+      "identifier": "com.quicksend.israelyagopereira",
       "icon": [
         "icons/32x32.png",
         "icons/128x128.png",
@@ -48,6 +48,14 @@
         "icons/icon.icns",
         "icons/icon.ico"
       ]
+    },
+    "updater": {
+      "active": true,
+      "endpoints": [
+        "https://gist.github.com/israelyago/5b1df1199385503e0198062978298d33/raw"
+      ],
+      "dialog": true,
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDIwMUUxMzJCNkY1OEQwOUEKUldTYTBGaHZLeE1lSUpnOTIyc200enBkckZ0YnRmTGdLSjYxUVVWKzhITlBKLy9RUE9WZ25NQXgK"
     }
   }
 }
