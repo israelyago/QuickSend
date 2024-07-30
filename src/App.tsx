@@ -48,38 +48,43 @@ function App() {
   }
 
   return (
-    <div className="container">
+    <div className="flex flex-col gap-12 my-12">
       <form
-        className=""
+        className="self-center flex flex-col p-3 gap-5"
         onSubmit={(e) => {
           e.preventDefault();
         }}
       >
-        <h2>Send</h2>
-        <button onClick={show_file_dialog}>Select files</button>
-      </form>
+        <h2 className="text-3xl text-center dark:text-gray-300">Send</h2>
+        <button className="w-fit self-center p-3 rounded-2xl border-4 border-slate-700 hover:bg-slate-700 hover:text-slate-50 dark:text-gray-300"
+          onClick={show_file_dialog}>Select files</button>
+      
 
-      {doc_ticket ? <div>
-        <h3>Super secret code:</h3>
-        <p>{doc_ticket}</p>
-      </div>: null}
-      <hr style={{width: "100%", color: "#f6f6f620"}} />
+        {doc_ticket ? <div className="">
+          <h3 className="dark:text-gray-300">Super secret code:</h3>
+          <p className="dark:text-gray-300">{doc_ticket}</p>
+        </div>: null}
+
+      </form>
+      <hr className="dark:border-zinc-700" />
 
       <form
-        className=""
+        className="self-center flex flex-col p-3 gap-5"
         onSubmit={(e) => {
           e.preventDefault();
           get_blob();
         }}
         >
-        <h2>Receive</h2>
+        <h2 className="text-3xl text-center dark:text-gray-300">Receive</h2>
         <input
-          className="mr-1"
+          className="p-3 rounded-2xl border-4 border-slate-700"
           onChange={(e) => setBlobTicket(e.currentTarget.value)}
           type="password"
           placeholder="Paste the secret here"
         />
-        <button type="submit">Download</button>
+        <button
+          className="p-3 rounded-2xl border-4 border-slate-700 hover:bg-slate-700 hover:text-slate-50 dark:text-gray-300"
+          type="submit">Download</button>
       </form>
 
       <Toaster
