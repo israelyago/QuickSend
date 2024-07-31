@@ -9,14 +9,16 @@ interface GetShareCodeResponse {
 }
 
 function App() {
-  const [blob_ticket, setBlobTicket] = useState("");
-  const [doc_ticket, setDocTicket] = useState("");
+  const [blobTicket, setBlobTicket] = useState("");
+  const [docTicket, setDocTicket] = useState("");
   const [pathsSelected, setPathsSelected] = useState<string[]>([]);
+  const [downloadButtonEnabled, setDownloadButtonEnabled] = useState(true);
 
   async function get_blob() {
     let toast_id = toast.loading("Downloading ...");
+    setDownloadButtonEnabled(false);
     invoke<string>("get_blob", {
-      getBlobRequest: { blob_ticket: blob_ticket },
+      getBlobRequest: { blob_ticket: blobTicket },
     }).then(
       (msg) => {
         toast.success(<p>{msg}</p>, {
@@ -28,7 +30,9 @@ function App() {
           id: toast_id,
         });
       },
-    );
+    ).finally(() => {
+      setDownloadButtonEnabled(true);
+    });
   }
 
   async function get_share_code(paths: string[]) {
@@ -104,13 +108,13 @@ function App() {
           </div>
         )}
 
-        {doc_ticket ? (
+        {docTicket ? (
           <div className="flex flex-col">
             <h3 className="dark:text-gray-300 self-center">
               Super secret code
             </h3>
             <p className="dark:text-gray-300 text-wrap break-words">
-              {doc_ticket}
+              {docTicket}
             </p>
           </div>
         ) : null}
@@ -132,8 +136,9 @@ function App() {
           placeholder="Paste the secret here"
         />
         <button
-          className="p-3 rounded-2xl border-4 border-slate-700 hover:bg-slate-700 hover:text-slate-50 dark:text-gray-300"
+          className="p-3 rounded-2xl border-4 border-slate-700 hover:bg-slate-700 hover:text-slate-50 dark:text-gray-300 disabled:text-gray-400 disabled:hover:bg-inherit disabled:border-slate-200 disabled:dark:text-gray-700 disabled:dark:hover:bg-inherit disabled:dark:border-slate-800"
           type="submit"
+          disabled={!downloadButtonEnabled}
         >
           Download
         </button>
