@@ -11,7 +11,7 @@ interface GetShareCodeResponse {
 function App() {
   const [blob_ticket, setBlobTicket] = useState("");
   const [doc_ticket, setDocTicket] = useState("");
-  const [pathsSelected, setPathsSelected] = useState([""]);
+  const [pathsSelected, setPathsSelected] = useState<string[]>([]);
 
   async function get_blob() {
     let toast_id = toast.loading("Downloading ...");
@@ -58,6 +58,16 @@ function App() {
       .catch(console.error);
   }
 
+  async function removePath(path: string) {
+    const pathsSelectedFiltered = pathsSelected.filter((p) => p != path);
+    setPathsSelected(pathsSelectedFiltered);
+    if (pathsSelectedFiltered.length > 0) {
+      get_share_code(pathsSelectedFiltered);
+    } else {
+      setDocTicket("");
+    }
+  }
+
   return (
     <div className="flex flex-col gap-12 my-12">
       <form
@@ -74,16 +84,34 @@ function App() {
           {pathsSelected.length == 0 ? "Select files" : "Select more files"}
         </button>
 
-        <div>
-          {pathsSelected.map((p) => {
-            return <div className="dark:text-gray-300">{p}</div>;
-          })}
-        </div>
+        {pathsSelected.length == 0 ? null : (
+          <div className="flex flex-col gap-2 rounded-xl border-2 border-gray-300 dark:border-gray-700 p-4">
+            {pathsSelected.map((p) => {
+              return (
+                <div className="flex flex-row place-content-between p-1">
+                  <p className="dark:text-gray-300">{p}</p>
+                  <div
+                    className="hover:cursor-pointer"
+                    onClick={() => {
+                      removePath(p);
+                    }}
+                  >
+                    🗑️
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {doc_ticket ? (
-          <div className="">
-            <h3 className="dark:text-gray-300">Super secret code:</h3>
-            <p className="dark:text-gray-300">{doc_ticket}</p>
+          <div className="flex flex-col">
+            <h3 className="dark:text-gray-300 self-center">
+              Super secret code
+            </h3>
+            <p className="dark:text-gray-300 text-wrap break-words">
+              {doc_ticket}
+            </p>
           </div>
         ) : null}
       </form>
