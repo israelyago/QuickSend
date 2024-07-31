@@ -88,7 +88,7 @@ struct GetBlob {
 #[tauri::command]
 async fn get_blob(state: tauri::State<'_, AppState>, get_blob_request: GetBlob) -> Result<String, String> {
     let ticket = DocTicket::from_str(&get_blob_request.blob_ticket).map_err(|e| e.to_string())?;
-     
+
     let response = state.iroh().docs().import(ticket.clone()).await.map_err(|e| e.to_string())?;
 
     let download_folder = match dirs_next::download_dir() {
@@ -101,7 +101,7 @@ async fn get_blob(state: tauri::State<'_, AppState>, get_blob_request: GetBlob) 
     let output: PathBuf = [download_folder, "quick_send".into()].iter().collect();
 
     println!("Output path set to {:?}", output);
-    
+
     let mut entries = response.get_many(Query::all()).await.map_err(|e| e.to_string())?;
     while let Some(entry) = entries.next().await {
         let entry = entry.map_err(|e| e.to_string())?;
@@ -112,11 +112,11 @@ async fn get_blob(state: tauri::State<'_, AppState>, get_blob_request: GetBlob) 
 
         let dest: PathBuf = Path::new(&output).join(name.clone());
         println!("<Entry name: {:?}, key: {:?}, len: {:?}, dest: {:?}>", name, entry.key(), entry.content_len(), dest);
-        
+
         let exp_format = ExportFormat::Blob;
         let exp_mode = ExportMode::Copy;
 
-        
+
         let mut stream = state
             .iroh()
             .blobs()
@@ -153,7 +153,7 @@ async fn get_blob(state: tauri::State<'_, AppState>, get_blob_request: GetBlob) 
             }
 
         }
-        
+
     }
     Ok(format!("Files downloaded at {}", output.to_string_lossy()))
 }
@@ -193,10 +193,10 @@ async fn get_share_code(state: tauri::State<'_, AppState>, get_share_code_reques
 
     for path in paths {
         let name = path.file_name().ok_or(format!("Could not find correct file name for {:?}", path.clone()))?;
-        
+
         let key = fs::path_to_key(name, None, None).map_err(|e| format!("Error when converting path to key: {:?}", e))?;
         let mut r = doc
-            .import_file(state.author, key, path.clone(), false)
+            .import_file(state.author, key, path.clone(), true)
             .await
             .map_err(|e| format!("Got an error when importing the file \"{:?}\". \"{:?}\"", path, e))?;
 
