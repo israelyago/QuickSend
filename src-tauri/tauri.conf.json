@@ -6,7 +6,7 @@
     "distDir": "../dist"
   },
   "package": {
-    "productName": "quick_send",
+    "productName": "QuickSend",
     "version": "0.0.5"
   },
   "tauri": {
