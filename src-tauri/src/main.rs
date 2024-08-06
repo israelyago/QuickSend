@@ -5,8 +5,10 @@
 use std::{path::{Path, PathBuf}, str::FromStr};
 use anyhow::{anyhow, Result};
 use iroh::{base::node_addr::AddrInfoOptions, blobs::{export::ExportProgress, store::{ExportFormat, ExportMode}}, client::{docs::{ImportProgress, ShareMode}, MemIroh as Iroh}, docs::{store::Query, AuthorId, DocTicket}, util::fs};
+use log::{error, info, trace, LevelFilter};
 use serde::{Deserialize, Serialize};
 use tauri::Manager;
+use tauri_plugin_log::LogTarget;
 use futures_lite::stream::StreamExt;
 
 type IrohNode = iroh::node::Node<iroh::blobs::store::fs::Store>;
@@ -20,7 +22,7 @@ async fn setup<R: tauri::Runtime>(handle: tauri::AppHandle<R>) -> Result<()> {
         .ok_or_else(|| anyhow!("can't get application data directory"))?
         .join("iroh_data");
 
-    println!("Data root set to: {:?}", data_root);
+    info!("Data root set to: {:?}", data_root);
 
     // create the iroh node
     let node = iroh::node::Node::persistent(data_root)
@@ -55,6 +57,10 @@ impl AppState {
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_log::Builder::default().targets([
+            LogTarget::LogDir,
+            LogTarget::Stdout,
+        ]).level(LevelFilter::Warn).level_for(String::from("quick_send"), LevelFilter::Trace).build())
         .setup(|app| {
             let handle = app.handle();
             #[cfg(debug_assertions)] // only include this code on debug builds
@@ -64,9 +70,9 @@ fn main() {
             }
 
             tauri::async_runtime::spawn(async move {
-                println!("starting backend...");
+                info!("starting backend...");
                 if let Err(err) = setup(handle).await {
-                    eprintln!("failed: {:?}", err);
+                    error!("failed: {:?}", err);
                 }
             });
 
@@ -100,7 +106,7 @@ async fn get_blob(state: tauri::State<'_, AppState>, get_blob_request: GetBlob) 
 
     let output: PathBuf = [download_folder, "quick_send".into()].iter().collect();
 
-    println!("Output path set to {:?}", output);
+    info!("Output path set to {:?}", output);
 
     let mut entries = response.get_many(Query::all()).await.map_err(|e| e.to_string())?;
     while let Some(entry) = entries.next().await {
@@ -111,7 +117,7 @@ async fn get_blob(state: tauri::State<'_, AppState>, get_blob_request: GetBlob) 
         }
 
         let dest: PathBuf = Path::new(&output).join(name.clone());
-        println!("<Entry name: {:?}, key: {:?}, len: {:?}, dest: {:?}>", name, entry.key(), entry.content_len(), dest);
+        info!("<Entry name: {:?}, key: {:?}, len: {:?}, dest: {:?}>", name, entry.key(), entry.content_len(), dest);
 
         let exp_format = ExportFormat::Blob;
         let exp_mode = ExportMode::Copy;
@@ -129,26 +135,26 @@ async fn get_blob(state: tauri::State<'_, AppState>, get_blob_request: GetBlob) 
                 Ok(progress) => {
                     match progress {
                         ExportProgress::Found { id, hash, size, outpath, meta: _meta } => {
-                            println!("Found {}: {}, size {:?}, outpath {:?}", id, hash, size, outpath);
+                            trace!("Found {}: {}, size {:?}, outpath {:?}", id, hash, size, outpath);
                         },
                         ExportProgress::Progress { id, offset } => {
-                            println!("Progress {}: {}", id, offset);
+                            trace!("Progress {}: {}", id, offset);
                         },
                         ExportProgress::Done { id } => {
-                            println!("Done {}.", id);
+                            trace!("Done {}.", id);
                             break;
                         },
                         ExportProgress::AllDone => {
-                            println!("Alldone.");
+                            trace!("Alldone.");
                             break;
                         },
                         ExportProgress::Abort(e) => {
-                            eprintln!("Abort: {}", e)
+                            error!("Abort: {}", e)
                         },
                     }
                 },
                 Err(err) => {
-                    eprintln!("{}", err);
+                    error!("{}", err);
                 },
             }
 
@@ -171,7 +177,7 @@ struct GetShareCodeResponse {
 
 #[tauri::command]
 async fn get_share_code(state: tauri::State<'_, AppState>, get_share_code_request: GetShareCodeRequest) -> Result<GetShareCodeResponse, String> {
-    println!("{:?}", get_share_code_request);
+    info!("{:?}", get_share_code_request);
     if get_share_code_request.files.is_empty() {
         return Err("Expected at least one valid file path".to_string());
     }
@@ -204,14 +210,14 @@ async fn get_share_code(state: tauri::State<'_, AppState>, get_share_code_reques
             match result {
                 Ok(progress) => {
                     match progress {
-                        ImportProgress::Found { id, name, size } => println!("Found {}: {}, size {:?}", id, name, size),
-                        ImportProgress::Progress { id, offset } => println!("Progress {}: {}", id, offset),
-                        ImportProgress::IngestDone { id, hash } => println!("Ingest Done {}: {}", id, hash),
-                        ImportProgress::AllDone { key } => println!("All done. Entry key set to {:?}", key),
-                        ImportProgress::Abort(e) => eprintln!("Operation aborted. Error: {:?}", e),
+                        ImportProgress::Found { id, name, size } => trace!("Found {}: {}, size {:?}", id, name, size),
+                        ImportProgress::Progress { id, offset } => trace!("Progress {}: {}", id, offset),
+                        ImportProgress::IngestDone { id, hash } => trace!("Ingest Done {}: {}", id, hash),
+                        ImportProgress::AllDone { key } => trace!("All done. Entry key set to {:?}", key),
+                        ImportProgress::Abort(e) => error!("Operation aborted. Error: {:?}", e),
                     }
                 },
-                Err(err) => eprintln!("{}", err),
+                Err(err) => error!("{}", err),
             }
         }
     }
