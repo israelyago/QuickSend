@@ -60,6 +60,7 @@ fn main() {
         .plugin(tauri_plugin_log::Builder::default().targets([
             LogTarget::LogDir,
             LogTarget::Stdout,
+            LogTarget::Webview,
         ]).level(LevelFilter::Warn).level_for(String::from("quick_send"), LevelFilter::Trace).build())
         .setup(|app| {
             let handle = app.handle();
