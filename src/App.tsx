@@ -90,9 +90,9 @@ function App() {
 
         {pathsSelected.length == 0 ? null : (
           <div className="flex flex-col gap-2 rounded-xl border-2 border-gray-300 dark:border-gray-700 p-4">
-            {pathsSelected.map((p) => {
+            {pathsSelected.map((p, index) => {
               return (
-                <div className="flex flex-row place-content-between p-1">
+                <div className="flex flex-row place-content-between p-1" key={index}>
                   <p className="dark:text-gray-300">{p}</p>
                   <div
                     className="hover:cursor-pointer"
