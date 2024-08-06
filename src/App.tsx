@@ -3,9 +3,25 @@ import { invoke } from "@tauri-apps/api/tauri";
 import { open as openFileDialog } from "@tauri-apps/api/dialog";
 import toast, { Toaster } from "react-hot-toast";
 import "./App.css";
+import { Tabs } from '@mui/base/Tabs';
+import { TabsList } from '@mui/base/TabsList';
+import { TabPanel } from '@mui/base/TabPanel';
+import { Tab, TabOwnerState, TabProps } from '@mui/base/Tab';
 
 interface GetShareCodeResponse {
   doc_ticket: string;
+}
+
+function QuickSendTab(props: TabProps) {
+  const slotProps = {
+    root: (ownerState: TabOwnerState) => ({
+      className: `${
+        ownerState.selected ? 'bg-amber-600 border-amber-600' : 'bg-inherit border-slate-700'
+      }`,
+    }),
+  };
+
+  return <Tab {...props} slotProps={slotProps} />;
 }
 
 function App() {
@@ -74,75 +90,83 @@ function App() {
 
   return (
     <div className="flex flex-col gap-12 my-12">
-      <form
-        className="self-center flex flex-col p-3 gap-5"
-        onSubmit={(e) => {
-          e.preventDefault();
-        }}
-      >
-        <h2 className="text-3xl text-center dark:text-gray-300">Send</h2>
-        <button
-          className="w-fit self-center p-3 rounded-2xl border-4 border-slate-700 hover:bg-slate-700 hover:text-slate-50 dark:text-gray-300"
-          onClick={show_file_dialog}
-        >
-          {pathsSelected.length == 0 ? "Select files" : "Select more files"}
-        </button>
+      <Tabs defaultValue={0} className="flex flex-col">
+        <TabsList className="flex w-fit self-center gap-4 pb-8">
+          <QuickSendTab value={0} className="hover:bg-amber-600 hover:border-amber-600 text-gray-300 border-4 py-3 px-4 rounded-2xl">Send</QuickSendTab>
+          <QuickSendTab value={1} className="hover:bg-amber-600 hover:border-amber-600 text-gray-300 border-4 py-3 px-4 rounded-2xl">Receive</QuickSendTab>
+        </TabsList>
+        <TabPanel value={0}>
+          <form
+            className="self-center flex flex-col p-3 gap-5"
+            onSubmit={(e) => {
+              e.preventDefault();
+            }}
+          >
+            <h2 className="text-3xl text-center dark:text-gray-300">Send</h2>
+            <button
+              className="w-fit self-center p-3 rounded-2xl border-4 border-slate-700 hover:bg-slate-700 hover:text-slate-50 dark:text-gray-300"
+              onClick={show_file_dialog}
+            >
+              {pathsSelected.length == 0 ? "Select files" : "Select more files"}
+            </button>
 
-        {pathsSelected.length == 0 ? null : (
-          <div className="flex flex-col gap-2 rounded-xl border-2 border-gray-300 dark:border-gray-700 p-4">
-            {pathsSelected.map((p, index) => {
-              return (
-                <div className="flex flex-row place-content-between p-1" key={index}>
-                  <p className="dark:text-gray-300">{p}</p>
-                  <div
-                    className="hover:cursor-pointer"
-                    onClick={() => {
-                      removePath(p);
-                    }}
-                  >
-                    🗑️
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+            {pathsSelected.length == 0 ? null : (
+              <div className="flex flex-col gap-2 rounded-xl border-2 border-gray-300 dark:border-gray-700 p-4">
+                {pathsSelected.map((p, index) => {
+                  return (
+                    <div className="flex flex-row place-content-between p-1" key={index}>
+                      <p className="dark:text-gray-300">{p}</p>
+                      <div
+                        className="hover:cursor-pointer"
+                        onClick={() => {
+                          removePath(p);
+                        }}
+                      >
+                        🗑️
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
-        {docTicket ? (
-          <div className="flex flex-col">
-            <h3 className="dark:text-gray-300 self-center">
-              Super secret code
-            </h3>
-            <p className="dark:text-gray-300 text-wrap break-words">
-              {docTicket}
-            </p>
-          </div>
-        ) : null}
-      </form>
-      <hr className="dark:border-zinc-700" />
-
-      <form
-        className="self-center flex flex-col p-3 gap-5"
-        onSubmit={(e) => {
-          e.preventDefault();
-          get_blob();
-        }}
-      >
-        <h2 className="text-3xl text-center dark:text-gray-300">Receive</h2>
-        <input
-          className="p-3 rounded-2xl border-4 border-slate-700"
-          onChange={(e) => setBlobTicket(e.currentTarget.value)}
-          type="password"
-          placeholder="Paste the secret here"
-        />
-        <button
-          className="p-3 rounded-2xl border-4 border-slate-700 hover:bg-slate-700 hover:text-slate-50 dark:text-gray-300 disabled:text-gray-400 disabled:hover:bg-inherit disabled:border-slate-200 disabled:dark:text-gray-700 disabled:dark:hover:bg-inherit disabled:dark:border-slate-800"
-          type="submit"
-          disabled={!downloadButtonEnabled}
-        >
-          Download
-        </button>
-      </form>
+            {docTicket ? (
+              <div className="flex flex-col">
+                <h3 className="dark:text-gray-300 self-center">
+                  Super secret code
+                </h3>
+                <p className="dark:text-gray-300 text-wrap break-words">
+                  {docTicket}
+                </p>
+              </div>
+            ) : null}
+          </form>
+        </TabPanel>
+        <TabPanel value={1}>
+          <form
+            className="self-center flex flex-col p-3 gap-5"
+            onSubmit={(e) => {
+              e.preventDefault();
+              get_blob();
+            }}
+          >
+            <h2 className="text-3xl text-center dark:text-gray-300">Receive</h2>
+            <input
+              className="p-3 rounded-2xl border-4 border-slate-700"
+              onChange={(e) => setBlobTicket(e.currentTarget.value)}
+              type="password"
+              placeholder="Paste the secret here"
+            />
+            <button
+              className="p-3 rounded-2xl border-4 border-slate-700 hover:bg-slate-700 hover:text-slate-50 dark:text-gray-300 disabled:text-gray-400 disabled:hover:bg-inherit disabled:border-slate-200 disabled:dark:text-gray-700 disabled:dark:hover:bg-inherit disabled:dark:border-slate-800"
+              type="submit"
+              disabled={!downloadButtonEnabled}
+            >
+              Download
+            </button>
+          </form>
+        </TabPanel>
+      </Tabs>
 
       <Toaster
         position="bottom-center"
