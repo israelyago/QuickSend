@@ -31,7 +31,9 @@ function App() {
   const [downloadButtonEnabled, setDownloadButtonEnabled] = useState(true);
 
   async function get_blob() {
-    let toast_id = toast.loading("Downloading ...");
+    let toast_id = toast.loading("Downloading ...", {
+      duration: Infinity,
+    });
     setDownloadButtonEnabled(false);
     invoke<string>("get_blob", {
       getBlobRequest: { blob_ticket: blobTicket },
@@ -47,6 +49,9 @@ function App() {
         });
       },
     ).finally(() => {
+      setTimeout(() => {
+        toast.dismiss(toast_id);
+      }, 5 * 1000);
       setDownloadButtonEnabled(true);
     });
   }
