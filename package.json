@@ -1,7 +1,7 @@
 {
   "name": "quick_send",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,11 +10,17 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@emotion/react": "^11.13.3",
+    "@emotion/styled": "^11.13.0",
     "@mui/base": "^5.0.0-beta.40",
+    "@mui/material": "^6.1.0",
+    "@reduxjs/toolkit": "^2.2.7",
     "@tauri-apps/api": "^1",
+    "nanoid": "^5.0.7",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hot-toast": "^2.4.1",
+    "react-redux": "^9.1.2",
     "tauri-plugin-log-api": "github:tauri-apps/tauri-plugin-log#v1"
   },
   "devDependencies": {

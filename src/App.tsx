@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/tauri";
+import { useAppDispatch, useAppSelector } from "./hooks";
 import { open as openFileDialog } from "@tauri-apps/api/dialog";
 import toast, { Toaster } from "react-hot-toast";
 import "./App.css";
@@ -7,6 +8,13 @@ import { Tabs } from '@mui/base/Tabs';
 import { TabsList } from '@mui/base/TabsList';
 import { TabPanel } from '@mui/base/TabPanel';
 import { Tab, TabOwnerState, TabProps } from '@mui/base/Tab';
+import { listen } from "@tauri-apps/api/event";
+import { appendDownloadable, clearDownloadablesList, doneDownloadable, Downloadable, DownloadableDone, DownloadableProgress, progressDownloadable } from "./features/receiver/receiver-slide";
+import { nanoid } from "nanoid";
+import LinearProgress, { LinearProgressProps } from '@mui/material/LinearProgress';
+import Typography from "@mui/material/Typography";
+import Box from "@mui/material/Box";
+import { appendUploadable, progressUploadable, removeUploadable, Uploadable, UploadableProgress } from "./features/sender/sender-slide";
 
 interface GetShareCodeResponse {
   doc_ticket: string;
@@ -27,10 +35,86 @@ function QuickSendTab(props: TabProps) {
 function App() {
   const [blobTicket, setBlobTicket] = useState("");
   const [docTicket, setDocTicket] = useState("");
-  const [pathsSelected, setPathsSelected] = useState<string[]>([]);
   const [downloadButtonEnabled, setDownloadButtonEnabled] = useState(true);
 
+  const downloadables = useAppSelector((state) => state.receiver.queue);
+  const uploadables = useAppSelector((state) => state.sender.queue);
+  const dispatch = useAppDispatch();
+
+  useEffect(() => {
+    const unlistenUploaderAppend = listen<{id: string, title: string, size: number}>('upload-queue-append', (event) => {
+      if (uploadables.findIndex(u => u.url == event.payload.title) != -1) {
+        return;
+      }
+      const element: Uploadable = {
+        unique_id: nanoid(),
+        id: event.payload.id,
+        url: event.payload.title,
+        size: event.payload.size,
+        progress: 0,
+      }
+      dispatch(appendUploadable(element))
+    });
+
+    const unlistenUploaderProgress = listen<{id: string, offset: number}>('upload-queue-progress', (event) => {
+      const element: UploadableProgress = {
+        id: event.payload.id,
+        progress: event.payload.offset,
+      }
+      dispatch(progressUploadable(element))
+    });
+
+    const unlistenUploaderAllDone = listen<{id: string}>('upload-queue-alldone', (event) => {
+      const element = uploadables.find(u => u.id == event.payload.id);
+      if (element === undefined) {
+        return;
+      }
+      const updatedElement: UploadableProgress = {
+        id: element.id,
+        progress: element.size,
+      };
+      dispatch(progressUploadable(updatedElement))
+    });
+
+    const unlistenDownloaderAppend = listen<{id: string, name: string, size: number}>('download-queue-append', (event) => {
+      const downloadable: Downloadable = {
+        unique_id: nanoid(),
+        id: event.payload.id,
+        title: event.payload.name,
+        size: event.payload.size,
+        progress: 0,
+      }
+      dispatch(appendDownloadable(downloadable))
+    });
+
+    const unlistenDownloaderProgress = listen<{id: string, offset: number}>('download-queue-progress', (event) => {
+      const downloadable: DownloadableProgress = {
+        id: event.payload.id,
+        progress: event.payload.offset,
+      }
+      dispatch(progressDownloadable(downloadable))
+    });
+
+    const unlistenDownloaderDone = listen<string>('download-queue-done', (event) => {
+      const downloadable: DownloadableDone = {
+        id: event.payload,
+      }
+      dispatch(doneDownloadable(downloadable))
+    });
+    return () => {
+      unlistenUploaderAppend.then(f => f());
+      unlistenUploaderProgress.then(f => f());
+      unlistenUploaderAllDone.then(f => f());
+
+      unlistenDownloaderAppend.then(f => f());
+      unlistenDownloaderProgress.then(f => f());
+      unlistenDownloaderDone.then(f => f());
+    };
+  }, []);
+
   async function get_blob() {
+    dispatch(clearDownloadablesList());
+
     let toast_id = toast.loading("Downloading ...", {
       duration: Infinity,
     });
@@ -56,10 +140,8 @@ function App() {
     });
   }
 
-  async function get_share_code(paths: string[]) {
-    let r: GetShareCodeResponse = await invoke("get_share_code", {
-      getShareCodeRequest: { files: paths },
-    });
+  async function get_share_code() {
+    let r: GetShareCodeResponse = await invoke("get_share_code");
     if (r["doc_ticket"]) {
       setDocTicket(r["doc_ticket"]);
     } else {
@@ -76,21 +158,42 @@ function App() {
         if (paths === null || paths instanceof String) {
           return;
         }
-        const all_paths = [...new Set([...pathsSelected, ...paths])];
-        setPathsSelected(all_paths);
-        await get_share_code(all_paths);
+
+        const p = paths as string[];
+
+        p.forEach(path => {
+          invoke("append_file", {
+            appendFileRequest: { file_path: path },
+          }).then(
+            () => {},
+            toast.error,
+          );
+        })
+
+        await get_share_code();
       })
       .catch(console.error);
   }
 
   async function removePath(path: string) {
-    const pathsSelectedFiltered = pathsSelected.filter((p) => p != path);
-    setPathsSelected(pathsSelectedFiltered);
-    if (pathsSelectedFiltered.length > 0) {
-      get_share_code(pathsSelectedFiltered);
-    } else {
-      setDocTicket("");
+
+    const element = uploadables.find(u => u.url == path);
+    if (element === undefined) {
+      return;
     }
+
+    invoke("remove_file", {
+      removeFileRequest: { file_path: path },
+    }).then(
+      () => {},
+      console.error,
+    );
+  }
+
+  function shouldShowShareCode(): boolean {
+    if (uploadables.length == 0) return false;
+    const shouldHideShareCode = uploadables.some(u => u.progress != u.size)
+    return !shouldHideShareCode;
   }
 
   return (
@@ -112,30 +215,29 @@ function App() {
               className="w-fit self-center p-3 rounded-2xl border-4 border-slate-700 hover:bg-slate-700 hover:text-slate-50 dark:text-gray-300"
               onClick={show_file_dialog}
             >
-              {pathsSelected.length == 0 ? "Select files" : "Select more files"}
+              {uploadables.length == 0 ? "Select files" : "Select more files"}
             </button>
 
-            {pathsSelected.length == 0 ? null : (
-              <div className="flex flex-col gap-2 rounded-xl border-2 border-gray-300 dark:border-gray-700 p-4">
-                {pathsSelected.map((p, index) => {
-                  return (
-                    <div className="flex flex-row place-content-between p-1" key={index}>
-                      <p className="dark:text-gray-300">{p}</p>
-                      <div
-                        className="hover:cursor-pointer"
-                        onClick={() => {
-                          removePath(p);
-                        }}
-                      >
-                        🗑️
-                      </div>
-                    </div>
-                  );
-                })}
+            {uploadables.map((uploadable) => (
+            <div className="flex flex-col rounded-2xl border-4 p-4 border-slate-700" key={uploadable.unique_id}>
+              <div className="flex justify-between">
+                <p className="text-gray-300">{uploadable.url}</p>
+                { uploadable.progress == uploadable.size ?
+                  <div
+                  className="hover:cursor-pointer"
+                  onClick={() => {
+                    removePath(uploadable.url);
+                    dispatch(removeUploadable(uploadable.unique_id));
+                  }}>
+                  🗑️
+                </div> : null }
               </div>
-            )}
+              { uploadable.progress == uploadable.size ? null :
+                <LinearProgressWithLabel value={(uploadable.progress/uploadable.size)*100} /> }
+            </div>
+            ))}
 
-            {docTicket ? (
+            {shouldShowShareCode() ? (
               <div className="flex flex-col">
                 <h3 className="dark:text-gray-300 self-center">
                   Super secret code
@@ -170,6 +272,17 @@ function App() {
               Download
             </button>
           </form>
+
+          {downloadables.map((downloadable) => (
+          <div className="flex flex-col rounded-2xl border-4 p-4 mt-2 border-slate-700" key={downloadable.unique_id}>
+            <div className="flex justify-between">
+              <p className="text-gray-300" key={downloadable.unique_id}>{downloadable.title}</p>
+              { downloadable.progress == downloadable.size ? <div>✅</div> : null }
+            </div>
+            { downloadable.progress == downloadable.size ? null :
+              <LinearProgressWithLabel value={(downloadable.progress/downloadable.size)*100} /> }
+          </div>
+          ))}
         </TabPanel>
       </Tabs>
 
@@ -185,6 +298,22 @@ function App() {
         }}
       />
     </div>
+  );
+}
+
+function LinearProgressWithLabel(props: LinearProgressProps & { value: number }) {
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+      <Box sx={{ width: '100%', mr: 1 }}>
+        <LinearProgress variant="determinate" {...props} />
+      </Box>
+      <Box sx={{ minWidth: 35 }}>
+        <Typography
+          variant="body2"
+          className="text-gray-300"
+        >{`${Math.round(props.value)}%`}</Typography>
+      </Box>
+    </Box>
   );
 }
 
