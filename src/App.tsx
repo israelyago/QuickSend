@@ -15,6 +15,7 @@ import LinearProgress, { LinearProgressProps } from '@mui/material/LinearProgres
 import Typography from "@mui/material/Typography";
 import Box from "@mui/material/Box";
 import { appendUploadable, progressUploadable, removeUploadable, Uploadable, UploadableProgress } from "./features/sender/sender-slide";
+import { ClipboardDocumentListIcon } from '@heroicons/react/24/outline'
 
 interface GetShareCodeResponse {
   doc_ticket: string;
@@ -196,6 +197,13 @@ function App() {
     return !shouldHideShareCode;
   }
 
+  function copySecretToClipBoard(_event: any) {
+    navigator.clipboard.writeText(docTicket);
+    toast.success("Copied to clipboard", {
+      duration: 2000,
+    });
+  }
+
   return (
     <div className="flex flex-col gap-12 my-12">
       <Tabs defaultValue={0} className="flex flex-col">
@@ -238,13 +246,19 @@ function App() {
             ))}
 
             {shouldShowShareCode() ? (
-              <div className="flex flex-col">
-                <h3 className="dark:text-gray-300 self-center">
+              <div className="flex flex-col items-center gap-2">
+                <h3 className="dark:text-gray-300">
                   Super secret code
                 </h3>
-                <p className="dark:text-gray-300 text-wrap break-words">
-                  {docTicket}
-                </p>
+                  <button className="flex gap-2 rounded-2xl border-4 px-4 py-2 border-slate-700 hover:bg-slate-700" onClick={copySecretToClipBoard}>
+                    <p className="w-64 dark:text-gray-300 whitespace-nowrap overflow-hidden overflow-ellipsis self-center">
+                      {docTicket}
+                    </p>
+                    <p className="dark:text-gray-300 uppercase">
+                      Copy
+                    </p>
+                    <ClipboardDocumentListIcon className="size-6 dark:text-gray-300" />
+                  </button>
               </div>
             ) : null}
           </form>
