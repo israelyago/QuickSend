@@ -15,7 +15,7 @@ import LinearProgress, { LinearProgressProps } from '@mui/material/LinearProgres
 import Typography from "@mui/material/Typography";
 import Box from "@mui/material/Box";
 import { appendUploadable, progressUploadable, removeUploadable, Uploadable, UploadableProgress } from "./features/sender/sender-slide";
-import { ClipboardDocumentListIcon } from '@heroicons/react/24/outline'
+import { ClipboardDocumentListIcon, TrashIcon, CheckIcon } from '@heroicons/react/24/outline'
 
 interface GetShareCodeResponse {
   doc_ticket: string;
@@ -237,7 +237,7 @@ function App() {
                     removePath(uploadable.url);
                     dispatch(removeUploadable(uploadable.unique_id));
                   }}>
-                  🗑️
+                  <TrashIcon className="size-6 dark:text-gray-300"/>
                 </div> : null }
               </div>
               { uploadable.progress == uploadable.size ? null :
@@ -291,7 +291,7 @@ function App() {
           <div className="flex flex-col rounded-2xl border-4 p-4 mt-2 border-slate-700" key={downloadable.unique_id}>
             <div className="flex justify-between">
               <p className="text-gray-300" key={downloadable.unique_id}>{downloadable.title}</p>
-              { downloadable.progress == downloadable.size ? <div>✅</div> : null }
+              { downloadable.progress == downloadable.size ? <div><CheckIcon className="size-6 dark:text-gray-300" /></div> : null }
             </div>
             { downloadable.progress == downloadable.size ? null :
               <LinearProgressWithLabel value={(downloadable.progress/downloadable.size)*100} /> }
