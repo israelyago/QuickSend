@@ -15,7 +15,7 @@ import LinearProgress, { LinearProgressProps } from '@mui/material/LinearProgres
 import Typography from "@mui/material/Typography";
 import Box from "@mui/material/Box";
 import { appendUploadable, progressUploadable, removeUploadable, Uploadable, UploadableProgress } from "./features/sender/sender-slide";
-import { ClipboardDocumentListIcon, TrashIcon, CheckIcon } from '@heroicons/react/24/outline'
+import { ClipboardDocumentListIcon, TrashIcon, CheckIcon, FolderArrowDownIcon } from '@heroicons/react/24/outline'
 
 interface GetShareCodeResponse {
   doc_ticket: string;
@@ -24,9 +24,8 @@ interface GetShareCodeResponse {
 function QuickSendTab(props: TabProps) {
   const slotProps = {
     root: (ownerState: TabOwnerState) => ({
-      className: `${
-        ownerState.selected ? 'bg-amber-600 border-amber-600' : 'bg-inherit border-slate-700'
-      }`,
+      className: `${ownerState.selected ? 'bg-amber-500 border-amber-500 dark:bg-amber-600 dark:border-amber-600' : 'bg-inherit border-slate-700'
+        }`,
     }),
   };
 
@@ -43,7 +42,7 @@ function App() {
   const dispatch = useAppDispatch();
 
   useEffect(() => {
-    const unlistenUploaderAppend = listen<{id: string, title: string, size: number}>('upload-queue-append', (event) => {
+    const unlistenUploaderAppend = listen<{ id: string, title: string, size: number }>('upload-queue-append', (event) => {
       if (uploadables.findIndex(u => u.url == event.payload.title) != -1) {
         return;
       }
@@ -57,7 +56,7 @@ function App() {
       dispatch(appendUploadable(element))
     });
 
-    const unlistenUploaderProgress = listen<{id: string, offset: number}>('upload-queue-progress', (event) => {
+    const unlistenUploaderProgress = listen<{ id: string, offset: number }>('upload-queue-progress', (event) => {
       const element: UploadableProgress = {
         id: event.payload.id,
         progress: event.payload.offset,
@@ -65,7 +64,7 @@ function App() {
       dispatch(progressUploadable(element))
     });
 
-    const unlistenUploaderAllDone = listen<{id: string}>('upload-queue-alldone', (event) => {
+    const unlistenUploaderAllDone = listen<{ id: string }>('upload-queue-alldone', (event) => {
       const element = uploadables.find(u => u.id == event.payload.id);
       if (element === undefined) {
         return;
@@ -77,7 +76,7 @@ function App() {
       dispatch(progressUploadable(updatedElement))
     });
 
-    const unlistenDownloaderAppend = listen<{id: string, name: string, size: number}>('download-queue-append', (event) => {
+    const unlistenDownloaderAppend = listen<{ id: string, name: string, size: number }>('download-queue-append', (event) => {
       const downloadable: Downloadable = {
         unique_id: nanoid(),
         id: event.payload.id,
@@ -88,7 +87,7 @@ function App() {
       dispatch(appendDownloadable(downloadable))
     });
 
-    const unlistenDownloaderProgress = listen<{id: string, offset: number}>('download-queue-progress', (event) => {
+    const unlistenDownloaderProgress = listen<{ id: string, offset: number }>('download-queue-progress', (event) => {
       const downloadable: DownloadableProgress = {
         id: event.payload.id,
         progress: event.payload.offset,
@@ -166,7 +165,7 @@ function App() {
           invoke("append_file", {
             appendFileRequest: { file_path: path },
           }).then(
-            () => {},
+            () => { },
             toast.error,
           );
         })
@@ -186,7 +185,7 @@ function App() {
     invoke("remove_file", {
       removeFileRequest: { file_path: path },
     }).then(
-      () => {},
+      () => { },
       console.error,
     );
   }
@@ -208,8 +207,8 @@ function App() {
     <div className="flex flex-col gap-12 my-12">
       <Tabs defaultValue={0} className="flex flex-col">
         <TabsList className="flex w-fit self-center gap-4 pb-8">
-          <QuickSendTab value={0} className="hover:bg-amber-600 hover:border-amber-600 text-gray-300 border-4 py-3 px-4 rounded-2xl">Send</QuickSendTab>
-          <QuickSendTab value={1} className="hover:bg-amber-600 hover:border-amber-600 text-gray-300 border-4 py-3 px-4 rounded-2xl">Receive</QuickSendTab>
+          <QuickSendTab value={0} className="hover:bg-amber-500 hover:border-amber-500 dark:hover:bg-amber-600 dark:hover:border-amber-600 text-gray-800 dark:text-gray-300 border-4 py-3 px-4 rounded-2xl">Send</QuickSendTab>
+          <QuickSendTab value={1} className="hover:bg-amber-500 hover:border-amber-500 dark:hover:bg-amber-600 dark:hover:border-amber-600 text-gray-800 dark:text-gray-300 border-4 py-3 px-4 rounded-2xl">Receive</QuickSendTab>
         </TabsList>
         <TabPanel value={0}>
           <form
@@ -226,44 +225,56 @@ function App() {
               {uploadables.length == 0 ? "Select files" : "Select more files"}
             </button>
 
-            {uploadables.map((uploadable) => (
-            <div className="flex flex-col rounded-2xl border-4 p-4 border-slate-700" key={uploadable.unique_id}>
-              <div className="flex justify-between">
-                <p className="text-gray-300">{uploadable.url}</p>
-                { uploadable.progress == uploadable.size ?
-                  <div
-                  className="hover:cursor-pointer"
-                  onClick={() => {
-                    removePath(uploadable.url);
-                    dispatch(removeUploadable(uploadable.unique_id));
-                  }}>
-                  <TrashIcon className="size-6 dark:text-gray-300"/>
-                </div> : null }
-              </div>
-              { uploadable.progress == uploadable.size ? null :
-                <LinearProgressWithLabel value={(uploadable.progress/uploadable.size)*100} /> }
+
+            <div className="flex flex-col gap-3 max-w-screen-lg self-center">
+              <h2 className="px-4 dark:text-gray-300 text-2xl">Selected files</h2>
+              <hr />
+              {uploadables.length == 0 ? <div className="px-4 dark:text-gray-500">
+                <i>No files were selected</i>
+              </div> : <div className="flex justify-between px-4 dark:text-gray-300">
+                <div>Name</div>
+                <div className="w-24 text-end">Actions</div>
+              </div>}
+              <section className="flex flex-col gap-1">
+                {uploadables.map((uploadable) => (
+                  <div className="flex flex-col px-4 text-slate-700 odd:bg-slate-200 odd:dark:bg-slate-800" key={uploadable.unique_id}>
+                    <div className="flex justify-between">
+                      <div className="self-center dark:text-gray-300">{uploadable.url}</div>
+                      {uploadable.progress == uploadable.size ?
+                        <div className="flex flex-none w-16 justify-end">
+                          <TrashIcon className="px-2 size-10 dark:text-gray-300 hover:cursor-pointer hover:text-red-500" onClick={() => {
+                            removePath(uploadable.url);
+                            dispatch(removeUploadable(uploadable.unique_id));
+                          }} />
+                        </div>
+                        : null}
+                    </div>
+                    {uploadable.progress == uploadable.size ? null :
+                      <LinearProgressWithLabel value={(uploadable.progress / uploadable.size) * 100} />}
+                  </div>
+                ))}
+              </section>
             </div>
-            ))}
 
             {shouldShowShareCode() ? (
               <div className="flex flex-col items-center gap-2">
                 <h3 className="dark:text-gray-300">
                   Super secret code
                 </h3>
-                  <button className="flex gap-2 rounded-2xl border-4 px-4 py-2 border-slate-700 hover:bg-slate-700" onClick={copySecretToClipBoard}>
-                    <p className="w-64 dark:text-gray-300 whitespace-nowrap overflow-hidden overflow-ellipsis self-center">
-                      {docTicket}
-                    </p>
-                    <p className="dark:text-gray-300 uppercase">
-                      Copy
-                    </p>
-                    <ClipboardDocumentListIcon className="size-6 dark:text-gray-300" />
-                  </button>
+                <button className="flex gap-2 rounded-2xl border-4 px-4 py-2 border-slate-700 hover:bg-slate-700 hover:text-slate-50" onClick={copySecretToClipBoard}>
+                  <p className="w-64 dark:text-gray-300 whitespace-nowrap overflow-hidden overflow-ellipsis self-center">
+                    {docTicket}
+                  </p>
+                  <p className="dark:text-gray-300 uppercase">
+                    Copy
+                  </p>
+                  <ClipboardDocumentListIcon className="size-6 dark:text-gray-300" />
+                </button>
               </div>
             ) : null}
           </form>
         </TabPanel>
-        <TabPanel value={1}>
+        <TabPanel value={1} className="flex flex-col">
           <form
             className="self-center flex flex-col p-3 gap-5"
             onSubmit={(e) => {
@@ -271,32 +282,47 @@ function App() {
               get_blob();
             }}
           >
-            <h2 className="text-3xl text-center dark:text-gray-300">Receive</h2>
-            <input
-              className="p-3 rounded-2xl border-4 border-slate-700"
-              onChange={(e) => setBlobTicket(e.currentTarget.value)}
-              type="password"
-              placeholder="Paste the secret here"
-            />
-            <button
-              className="p-3 rounded-2xl border-4 border-slate-700 hover:bg-slate-700 hover:text-slate-50 dark:text-gray-300 disabled:text-gray-400 disabled:hover:bg-inherit disabled:border-slate-200 disabled:dark:text-gray-700 disabled:dark:hover:bg-inherit disabled:dark:border-slate-800"
-              type="submit"
-              disabled={!downloadButtonEnabled}
-            >
-              Download
-            </button>
+            <h2 className="text-3xl text-center dark:text-gray-300">Receive files</h2>
+            <div className="flex gap-4">
+              <input
+                className="p-3 rounded-2xl border-4 border-slate-700"
+                onChange={(e) => setBlobTicket(e.currentTarget.value)}
+                type="password"
+                placeholder="Paste the secret here"
+              />
+              <button
+                className="flex gap-2 p-3 rounded-2xl border-4 border-slate-700 hover:bg-slate-700 hover:text-slate-50 dark:text-gray-300 disabled:text-gray-400 disabled:hover:bg-inherit disabled:border-slate-200 disabled:dark:text-gray-700 disabled:dark:hover:bg-inherit disabled:dark:border-slate-800"
+                type="submit"
+                disabled={!downloadButtonEnabled}
+              >
+                <FolderArrowDownIcon className="size-6" />
+                Download
+              </button>
+            </div>
           </form>
 
-          {downloadables.map((downloadable) => (
-          <div className="flex flex-col rounded-2xl border-4 p-4 mt-2 border-slate-700" key={downloadable.unique_id}>
-            <div className="flex justify-between">
-              <p className="text-gray-300" key={downloadable.unique_id}>{downloadable.title}</p>
-              { downloadable.progress == downloadable.size ? <div><CheckIcon className="size-6 dark:text-gray-300" /></div> : null }
-            </div>
-            { downloadable.progress == downloadable.size ? null :
-              <LinearProgressWithLabel value={(downloadable.progress/downloadable.size)*100} /> }
+          <div className="self-center flex flex-col gap-3 max-w-screen-lg px-3">
+            <h2 className="px-4 dark:text-gray-300 text-2xl">Files</h2>
+            <hr />
+            {downloadables.length == 0 ? <div className="px-4 dark:text-gray-500">
+              <i>No files yet</i>
+            </div> : <div className="flex justify-between px-4 dark:text-gray-300">
+              <div>Name</div>
+              <div className="w-24 text-end">Status</div>
+            </div>}
+            <section className="flex flex-col gap-1">
+              {downloadables.map((downloadable) => (
+                <div className="flex px-4 justify-between text-slate-700 odd:bg-slate-200 odd:dark:bg-slate-800" key={downloadable.unique_id}>
+                  <div className="self-center dark:text-gray-300">{downloadable.title}</div>
+                  <div className="flex flex-none justify-end self-center dark:text-gray-300 w-12">
+                    {downloadable.progress == downloadable.size ?
+                      <CheckIcon className="size-6 dark:text-gray-300" />
+                      : ((downloadable.progress / downloadable.size) * 100).toString() + "%"}
+                  </div>
+                </div>
+              ))}
+            </section>
           </div>
-          ))}
         </TabPanel>
       </Tabs>
 
@@ -324,7 +350,7 @@ function LinearProgressWithLabel(props: LinearProgressProps & { value: number })
       <Box sx={{ minWidth: 35 }}>
         <Typography
           variant="body2"
-          className="text-gray-300"
+          className="dark:text-gray-300"
         >{`${Math.round(props.value)}%`}</Typography>
       </Box>
     </Box>
