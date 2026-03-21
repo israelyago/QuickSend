@@ -1,28 +1,37 @@
 [package]
-name = "quick_send"
-version = "0.2.1"
+name = "quicksend"
+version = "0.3.0"
 description = "Send files peer to peer"
-authors = ["you"]
+authors = ["Israel Yago Pereira"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "quicksend_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
 [build-dependencies]
-tauri-build = { version = "1", features = [] }
+tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "1", features = ["updater", "dialog-open", "shell-open"] }
-tauri-plugin-log = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "v1" }
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-clipboard-manager = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-iroh = "0.20.0"
-log = "0.4"
-anyhow = "1.0.86"
-tokio = { version = "1" }
-tokio-util = { version = "0.7" }
-futures-lite = "2.3"
-dirs-next = "2.0.0"
+iroh = "0.97.0"
+iroh-blobs = { version = "0.99.0", default-features = false, features = [
+    "fs-store",
+] }
+tokio = { version = "1", features = ["rt", "macros", "time"] }
+anyhow = "1"
+postcard = "1"
+n0-future = "0.1"
 
-[features]
-# This feature is used for production builds or when a dev server is not specified, DO NOT REMOVE!!
-custom-protocol = ["tauri/custom-protocol"]
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-updater = "2"

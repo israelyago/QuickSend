@@ -1,0 +1,106 @@
+@config "../tailwind.config.ts";
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: "Inter", "Segoe UI", sans-serif;
+  --radius: var(--radius);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+}
+
+:root {
+  color: #0f172a;
+  background-color: #f8fafc;
+  font-family: var(--font-sans);
+  --radius: 0.5rem;
+  --background: hsl(0 0% 100%);
+  --foreground: hsl(222.2 47.4% 11.2%);
+  --muted: hsl(210 40% 96.1%);
+  --muted-foreground: hsl(215.4 16.3% 46.9%);
+  --accent: hsl(210 40% 96.1%);
+  --accent-foreground: hsl(222.2 47.4% 11.2%);
+  --popover: hsl(0 0% 100%);
+  --popover-foreground: hsl(222.2 47.4% 11.2%);
+  --card: hsl(0 0% 100%);
+  --card-foreground: hsl(222.2 47.4% 11.2%);
+  --border: hsl(214.3 31.8% 91.4%);
+  --input: hsl(214.3 31.8% 91.4%);
+  --ring: hsl(215 20.2% 65.1%);
+  --primary: hsl(222.2 47.4% 11.2%);
+  --primary-foreground: hsl(210 40% 98%);
+  --secondary: hsl(210 40% 96.1%);
+  --secondary-foreground: hsl(222.2 47.4% 11.2%);
+  --destructive: oklch(94.1% 0.03 12.58);
+  --destructive-foreground: oklch(64.5% 0.246 16.439);
+}
+
+:root.dark {
+  color: #fafafa;
+  background-color: #18181b;
+  --background: oklch(20.5% 0 0);
+  --foreground: hsl(0 0% 98%);
+  --muted: oklch(37% 0.013 285.805);
+  --muted-foreground: hsl(240 5% 64.9%);
+  --accent: oklch(43.9% 0 0);
+  --accent-foreground: hsl(0 0% 98%);
+  --popover: hsl(240 10% 5.9%);
+  --popover-foreground: hsl(0 0% 98%);
+  --card: oklch(26.9% 0 0);
+  --card-foreground: hsl(0 0% 98%);
+  --border: hsl(240 3.7% 15.9%);
+  --input: hsl(240 3.7% 15.9%);
+  --ring: hsl(240 4.9% 83.9%);
+  --primary: hsl(0 0% 98%);
+  --primary-foreground: hsl(240 5.9% 10%);
+  --secondary: hsl(240 3.7% 15.9%);
+  --secondary-foreground: hsl(0 0% 98%);
+  --destructive: oklch(89.2% 0.058 10.001);
+  --destructive-foreground: oklch(64.5% 0.246 16.439);
+}
+
+body {
+  margin: 0;
+  color: var(--foreground);
+  background-color: var(--background);
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+@keyframes qs-slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.qs-slide-down {
+  animation: qs-slide-down 180ms ease-out;
+}
