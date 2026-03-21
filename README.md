@@ -3,6 +3,12 @@ QuickSend lets you send files directly from one device to another (Peer to Peer 
 
 No account, no cloud upload, no login, no max file size.
 
+![Send page](docs/images/1.png)
+![Sending one big file](docs/images/2.png)
+![Receiving a file](docs/images/3.png)
+![Settings page](docs/images/4.png)
+
+
 ## 🔄 Basic Flow
 
 1. On the sender device, open **Send** and select files.
