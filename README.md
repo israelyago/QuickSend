@@ -3,7 +3,7 @@ QuickSend lets you send files directly from one device to another (Peer to Peer 
 
 No account, no cloud upload, no login, no max file size.
 
-Powerd by [iroh](https://github.com/n0-computer/iroh), [Tauri](https://tauri.app/)
+Powered by [iroh](https://github.com/n0-computer/iroh), [Tauri](https://tauri.app/)
 
 ![Send page](docs/images/1.png)
 ![Sending one big file](docs/images/2.png)
