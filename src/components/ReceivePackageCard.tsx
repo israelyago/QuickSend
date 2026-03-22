@@ -1,17 +1,13 @@
 import { CloudDownload, Package as PackageIcon } from "lucide-react";
-import { filesize } from "filesize";
 import { Progress } from "./ui/progress";
 import { type Package, type Settings } from "../types/domain";
+import { formatBytes } from "../lib/formatters";
 
 type ReceivePackageCardProps = {
   pkg: Package;
   sizeUnit: Settings["sizeUnit"];
   onOpen: () => void;
 };
-
-function formatBytes(value: number, sizeUnit: Settings["sizeUnit"]) {
-  return filesize(value, { standard: sizeUnit, round: 1, pad: true }) as string;
-}
 
 export function ReceivePackageCard({ pkg, sizeUnit, onOpen }: ReceivePackageCardProps) {
   const progressPercent = Math.min(

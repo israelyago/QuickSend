@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useNavigate } from "react-router-dom";
 import { useAppStore } from "../store/appStore";
 import { ReceivePackageCard } from "../components/ReceivePackageCard";
+import { useReceiveClipboardTicketSync } from "../hooks/useReceiveClipboardTicketSync";
 
 type PackagePreviewResponse = {
   packageId: string;
@@ -32,7 +33,6 @@ export function ReceivePage() {
   const setAutoPreviewedClipboardTicket = useAppStore((state) => state.setAutoPreviewedClipboardTicket);
   const autoFilledClipboardTicket = useAppStore((state) => state.autoFilledClipboardTicket);
   const setAutoFilledClipboardTicket = useAppStore((state) => state.setAutoFilledClipboardTicket);
-  const didInitialClipboardCheck = useRef(false);
   const receivePackages = useMemo(
     () => packages.filter((pkg) => pkg.mode === "receive"),
     [packages],
@@ -74,85 +74,15 @@ export function ReceivePage() {
     [createReceivePreviewPackage, navigate, setAutoPreviewedClipboardTicket],
   );
 
-  useEffect(() => {
-    if (didInitialClipboardCheck.current) {
-      return;
-    }
-    didInitialClipboardCheck.current = true;
-
-    if (receiveDraftTicket || busy) {
-      return;
-    }
-
-    const previewFromClipboard = async () => {
-      try {
-        const ticket = await invoke<string | null>("clipboard_ticket");
-        if (ticket && ticket !== autoPreviewedClipboardTicket) {
-          setReceiveDraftTicket(ticket);
-          await previewWithTicket(ticket);
-        }
-      } catch {
-        // clipboard access optional
-      }
-    };
-
-    void previewFromClipboard();
-  }, [
+  useReceiveClipboardTicketSync({
+    autoFilledClipboardTicket,
     autoPreviewedClipboardTicket,
     busy,
+    receiveDraftTicket,
     previewWithTicket,
-    receiveDraftTicket,
-    setReceiveDraftTicket,
-  ]);
-
-  const fillFromClipboard = useCallback(async () => {
-    if (receiveDraftTicket || busy) {
-      return;
-    }
-
-    try {
-      const ticket = await invoke<string | null>("clipboard_ticket");
-      if (ticket && ticket !== autoFilledClipboardTicket) {
-        setReceiveDraftTicket(ticket);
-        setAutoFilledClipboardTicket(ticket);
-      }
-    } catch {
-      // clipboard access optional
-    }
-  }, [
-    autoFilledClipboardTicket,
-    busy,
-    receiveDraftTicket,
     setAutoFilledClipboardTicket,
     setReceiveDraftTicket,
-  ]);
-
-  useEffect(() => {
-    const onFocus = () => {
-      void fillFromClipboard();
-    };
-    window.addEventListener("focus", onFocus);
-    return () => {
-      window.removeEventListener("focus", onFocus);
-    };
-  }, [fillFromClipboard]);
-
-  useEffect(() => {
-    return () => {
-      if (
-        receiveDraftTicket &&
-        receiveDraftTicket === autoFilledClipboardTicket &&
-        receiveDraftTicket !== autoPreviewedClipboardTicket
-      ) {
-        setReceiveDraftTicket("");
-      }
-    };
-  }, [
-    autoFilledClipboardTicket,
-    autoPreviewedClipboardTicket,
-    receiveDraftTicket,
-    setReceiveDraftTicket,
-  ]);
+  });
 
   async function previewPackage() {
     await previewWithTicket(receiveDraftTicket);

@@ -169,6 +169,7 @@ async function run() {
         downloadDir: "~/Downloads",
         theme: "system",
         autoDownloadMaxBytes: 0,
+        autoInstallUpdates: true,
         sizeUnit: "jedec",
       },
     });
