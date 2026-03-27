@@ -104,10 +104,11 @@ export function usePackageActions({
     setBusy(true);
     setError(null);
     try {
+      const configuredDownloadDir = settings.downloadDir.trim();
       const result = await invoke<PackageDownloadResponse>("package_download", {
         ticket: packageData.ticket,
         packageId: packageData.backendPackageId ?? packageData.id,
-        downloadDir: settings.downloadDir,
+        downloadDir: configuredDownloadDir.length > 0 ? configuredDownloadDir : undefined,
       });
 
       attachReceiveSession({

@@ -1,7 +1,8 @@
 import { expect, test } from "@playwright/test";
+import { TEST_DOWNLOAD_DIR, TEST_LOGS_DIR, TEST_TRANSFER_OUTPUT_DIR } from "../../src/test/helpers/paths";
 
 test("receive flow click-click: preview -> download -> completed", async ({ page }) => {
-  await page.addInitScript(() => {
+  await page.addInitScript(({ testDownloadDir, testLogsDir }) => {
     type ListenerRecord = { event: string; handlerId: number };
 
     const callbacks = new Map<number, (payload: unknown) => void>();
@@ -22,13 +23,17 @@ test("receive flow click-click: preview -> download -> completed", async ({ page
       invoke: async (cmd: string, args: Record<string, unknown>) => {
         if (cmd === "settings_load") {
           return {
+            downloadDir: testDownloadDir,
+            theme: "system",
             autoDownloadMaxBytes: 0,
+            autoInstallUpdates: true,
+            sizeUnit: "jedec",
           };
         }
         if (cmd === "settings_save") return null;
         if (cmd === "clipboard_ticket") return null;
-        if (cmd === "logs_dir") return "/tmp";
-        if (cmd === "open_logs_dir") return "/tmp";
+        if (cmd === "logs_dir") return testLogsDir;
+        if (cmd === "open_logs_dir") return testLogsDir;
 
         if (cmd === "package_preview") {
           return {
@@ -90,7 +95,7 @@ test("receive flow click-click: preview -> download -> completed", async ({ page
         callback?.({ event: eventName, id: eventId, payload });
       }
     };
-  });
+  }, { testDownloadDir: TEST_DOWNLOAD_DIR, testLogsDir: TEST_LOGS_DIR });
 
   await page.goto("/");
 
@@ -125,7 +130,7 @@ test("receive flow click-click: preview -> download -> completed", async ({ page
     ).__emitMockEvent("transfer:completed", {
       sessionId: "recv-session-ui-1",
       packageId: "pkg-ui-1",
-      downloadDir: "/tmp",
+      downloadDir: TEST_TRANSFER_OUTPUT_DIR,
     });
   });
 

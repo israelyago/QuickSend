@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import "../../index.css";
 import { PackagePage } from "../../pages/PackagePage";
 import { useAppStore } from "../../store/appStore";
+import { TEST_DOWNLOAD_DIR, TEST_TRANSFER_OUTPUT_DIR } from "../helpers/paths";
 import type { Package } from "../../types/domain";
 
 type VisualState = "preview" | "downloading" | "completed";
@@ -57,7 +58,7 @@ function buildReceivePackage(state: VisualState): Package {
       sessionId: "recv-session-visual",
       status: "completed",
       transferredBytes: 2048,
-      downloadDir: "/tmp",
+      downloadDir: TEST_TRANSFER_OUTPUT_DIR,
     };
   }
 
@@ -69,7 +70,7 @@ const state = resolveStateFromQuery();
 useAppStore.setState({
   packages: [buildReceivePackage(state)],
   settings: {
-    downloadDir: "~/Downloads",
+    downloadDir: TEST_DOWNLOAD_DIR,
     theme: "light",
     autoDownloadMaxBytes: 1024 * 1024 * 1024,
     autoInstallUpdates: true,

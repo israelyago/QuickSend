@@ -21,6 +21,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { SendPage } from "./SendPage";
 import { PackagePage } from "./PackagePage";
+import { TEST_SOURCE_FILE_PATH } from "../test/helpers/paths";
 import { resetAppStoreForTest } from "../test/helpers/store";
 import { mockTauriInvoke } from "../test/helpers/tauri";
 
@@ -28,12 +29,12 @@ describe("Send -> Package visual flow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetAppStoreForTest();
-    vi.mocked(open).mockResolvedValue("/tmp/demo.txt");
+    vi.mocked(open).mockResolvedValue(TEST_SOURCE_FILE_PATH);
     mockTauriInvoke(({ command }) => {
       if (command === "inspect_files") {
         return [
           {
-            path: "/tmp/demo.txt",
+            path: TEST_SOURCE_FILE_PATH,
             name: "demo.txt",
             sizeBytes: 1024,
             mimeType: "text/plain",
@@ -60,7 +61,7 @@ describe("Send -> Package visual flow", () => {
 
     expect(vi.mocked(open)).toHaveBeenCalled();
     expect(vi.mocked(invoke)).toHaveBeenCalledWith("inspect_files", {
-      files: ["/tmp/demo.txt"],
+      files: [TEST_SOURCE_FILE_PATH],
     });
 
     expect(await screen.findByRole("columnheader", { name: "Name" })).toBeInTheDocument();

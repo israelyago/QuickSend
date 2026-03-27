@@ -166,7 +166,7 @@ async function run() {
     // Disable auto-download so the flow uses explicit Download button clicks.
     await invokeCommand(receiverSession, "settings_save", {
       settings: {
-        downloadDir: "~/Downloads",
+        downloadDir: downloadsDir,
         theme: "system",
         autoDownloadMaxBytes: 0,
         autoInstallUpdates: true,

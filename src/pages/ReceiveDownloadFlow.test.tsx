@@ -28,6 +28,7 @@ vi.mock("@tauri-apps/plugin-opener", () => ({
 import { invoke } from "@tauri-apps/api/core";
 import { PackagePage } from "./PackagePage";
 import { ReceivePage } from "./ReceivePage";
+import { TEST_DOWNLOAD_DIR, TEST_TRANSFER_OUTPUT_DIR } from "../test/helpers/paths";
 import { resetAppStoreForTest } from "../test/helpers/store";
 import { mockTauriInvoke } from "../test/helpers/tauri";
 import { useAppStore } from "../store/appStore";
@@ -84,7 +85,7 @@ describe("Receive download UI flow", () => {
     expect(vi.mocked(invoke)).toHaveBeenCalledWith("package_download", {
       ticket: "blob:ticket-recv-flow",
       packageId: "pkg-recv-1",
-      downloadDir: "~/Downloads",
+      downloadDir: TEST_DOWNLOAD_DIR,
     });
 
     expect(await screen.findByRole("button", { name: "Cancel download" })).toBeInTheDocument();
@@ -104,7 +105,7 @@ describe("Receive download UI flow", () => {
       useAppStore.getState().applyCompletedEvent({
         sessionId: "recv-session-1",
         packageId: "pkg-recv-1",
-        downloadDir: "/tmp",
+        downloadDir: TEST_TRANSFER_OUTPUT_DIR,
       });
     });
 
@@ -113,4 +114,3 @@ describe("Receive download UI flow", () => {
     expect(screen.getByText(/Status:\s*completed/i)).toBeInTheDocument();
   });
 });
-

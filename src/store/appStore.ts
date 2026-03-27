@@ -78,7 +78,7 @@ type AppState = {
 };
 
 const initialSettings: Settings = {
-  downloadDir: "~/Downloads",
+  downloadDir: "",
   theme: "system",
   autoDownloadMaxBytes: 1024 * 1024 * 1024,
   autoInstallUpdates: true,

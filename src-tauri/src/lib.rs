@@ -363,17 +363,21 @@ fn open_logs_dir(app: tauri::AppHandle) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn settings_load(app: tauri::AppHandle) -> Result<Option<PersistedSettings>, String> {
+fn settings_load(app: tauri::AppHandle) -> Result<PersistedSettings, String> {
+    let defaults = default_settings(&app)?;
     let file = settings_file_path(&app)?;
     if !file.exists() {
-        return Ok(None);
+        return Ok(defaults);
     }
 
     let content = std::fs::read_to_string(&file)
         .map_err(|err| format!("failed to read settings file {}: {err}", file.display()))?;
-    let parsed = serde_json::from_str::<PersistedSettings>(&content)
+    let mut parsed = serde_json::from_str::<PersistedSettings>(&content)
         .map_err(|err| format!("failed to parse settings file {}: {err}", file.display()))?;
-    Ok(Some(parsed))
+    if parsed.download_dir.trim().is_empty() {
+        parsed.download_dir = defaults.download_dir;
+    }
+    Ok(parsed)
 }
 
 #[tauri::command]
@@ -440,7 +444,7 @@ async fn package_download(
         );
     }
 
-    let output_dir = resolve_download_dir(download_dir)?;
+    let output_dir = resolve_download_dir(&app, download_dir)?;
 
     let app_handle = app.clone();
     let session_for_task = session_id.clone();
@@ -849,24 +853,69 @@ fn infer_mime_type(path: &Path) -> String {
     mime.to_string()
 }
 
-fn resolve_download_dir(download_dir: Option<String>) -> Result<PathBuf, String> {
-    if let Some(path) = download_dir {
-        if let Some(home) = std::env::var_os("HOME") {
+fn default_settings(app: &tauri::AppHandle) -> Result<PersistedSettings, String> {
+    let download_dir = resolve_default_download_dir(app)?;
+    Ok(PersistedSettings {
+        download_dir: download_dir.display().to_string(),
+        theme: "system".to_string(),
+        auto_download_max_bytes: 1024 * 1024 * 1024,
+        auto_install_updates: true,
+        size_unit: "jedec".to_string(),
+    })
+}
+
+fn resolve_home_dir() -> Option<PathBuf> {
+    if let Some(home) = std::env::var_os("HOME") {
+        return Some(PathBuf::from(home));
+    }
+    if let Some(user_profile) = std::env::var_os("USERPROFILE") {
+        return Some(PathBuf::from(user_profile));
+    }
+    let home_drive = std::env::var_os("HOMEDRIVE");
+    let home_path = std::env::var_os("HOMEPATH");
+    match (home_drive, home_path) {
+        (Some(drive), Some(path)) => Some(PathBuf::from(format!(
+            "{}{}",
+            drive.to_string_lossy(),
+            path.to_string_lossy()
+        ))),
+        _ => None,
+    }
+}
+
+fn resolve_default_download_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    if let Ok(path) = app.path().download_dir() {
+        return Ok(path);
+    }
+    if let Some(home) = resolve_home_dir() {
+        return Ok(home.join("Downloads"));
+    }
+    Err("unable to resolve default download directory".to_string())
+}
+
+fn resolve_download_dir(
+    app: &tauri::AppHandle,
+    download_dir: Option<String>,
+) -> Result<PathBuf, String> {
+    if let Some(raw) = download_dir {
+        let path = raw.trim();
+        if path.is_empty() {
+            return resolve_default_download_dir(app);
+        }
+        if let Some(home) = resolve_home_dir() {
             if path == "~" {
-                return Ok(PathBuf::from(home));
+                return Ok(home);
             }
             if let Some(stripped) = path.strip_prefix("~/") {
-                return Ok(PathBuf::from(home).join(stripped));
+                return Ok(home.join(stripped));
+            }
+            if let Some(stripped) = path.strip_prefix("~\\") {
+                return Ok(home.join(stripped));
             }
         }
         return Ok(PathBuf::from(path));
     }
-
-    if let Ok(home) = std::env::var("HOME") {
-        return Ok(PathBuf::from(home).join("Downloads"));
-    }
-
-    Err("unable to resolve default download directory".to_string())
+    resolve_default_download_dir(app)
 }
 
 fn download_staging_dir(session_id: &str) -> PathBuf {

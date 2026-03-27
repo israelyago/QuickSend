@@ -85,7 +85,7 @@ function App() {
 
     const loadSettings = async () => {
       try {
-        const loaded = await invoke<Partial<Settings> | null>("settings_load");
+        const loaded = await invoke<Partial<Settings>>("settings_load");
         if (!active) {
           return;
         }
