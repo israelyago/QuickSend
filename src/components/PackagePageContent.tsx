@@ -70,29 +70,29 @@ export function PackagePageContent({
       ) : null}
 
       {packageData.mode === "send" &&
-      packageData.prepareStatus &&
-      packageData.prepareStatus !== "idle" &&
-      packageData.prepareProgress ? (
+        packageData.prepareStatus &&
+        packageData.prepareStatus !== "completed" &&
+        packageData.prepareStatus !== "idle" &&
+        packageData.prepareProgress ? (
         <div className="rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4">
           <div className="mb-2 flex items-center justify-between text-sm">
             <span className="font-medium text-slate-900 dark:text-zinc-100">
-              {packageData.prepareStatus === "completed"
-                ? "Finalizing package..."
-                : packageData.prepareStatus === "failed"
-                  ? "Prepare failed"
-                  : packageData.prepareStatus === "cancelled"
-                    ? "Prepare cancelled"
-                    : "Preparing files..."}
+              {packageData.prepareStatus === "failed"
+                ? "Prepare failed"
+                : packageData.prepareStatus === "cancelled"
+                  ? "Prepare cancelled"
+                  : "Preparing files..."}
             </span>
             <span className="text-slate-600 dark:text-zinc-300">
               {packageData.prepareProgress.completedFiles} / {packageData.prepareProgress.totalFiles}
             </span>
           </div>
+
           <Progress
             value={
               packageData.prepareProgress.totalFiles > 0
                 ? (packageData.prepareProgress.completedFiles / packageData.prepareProgress.totalFiles) *
-                  100
+                100
                 : 0
             }
           />

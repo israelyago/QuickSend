@@ -120,9 +120,13 @@ async function run() {
   const senderInputDir = path.join(root, "sender-input");
   const senderFile = path.join(senderInputDir, "e2e-transfer.txt");
   const expectedOutFile = path.join(downloadsDir, "e2e-transfer.txt");
+  const senderTmpDir = path.join(root, "sender-tmp");
+  const receiverTmpDir = path.join(root, "receiver-tmp");
 
   await mkdir(downloadsDir, { recursive: true });
   await mkdir(senderInputDir, { recursive: true });
+  await mkdir(senderTmpDir, { recursive: true });
+  await mkdir(receiverTmpDir, { recursive: true });
   await writeFile(senderFile, "packaged e2e transfer payload\n", "utf8");
 
   let senderDriver;
@@ -140,6 +144,9 @@ async function run() {
 
     senderDriver = spawnTauriDriver({
       HOME: homeDir,
+      TMPDIR: senderTmpDir,
+      TEMP: senderTmpDir,
+      TMP: senderTmpDir,
       QUICKSEND_THROTTLE_MS: "0",
     }, {
       port: senderWebdriverPort,
@@ -149,6 +156,9 @@ async function run() {
     });
     receiverDriver = spawnTauriDriver({
       HOME: homeDir,
+      TMPDIR: receiverTmpDir,
+      TEMP: receiverTmpDir,
+      TMP: receiverTmpDir,
       QUICKSEND_THROTTLE_MS: "0",
     }, {
       port: receiverWebdriverPort,
