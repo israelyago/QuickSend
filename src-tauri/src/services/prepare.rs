@@ -968,4 +968,340 @@ mod tests {
         assert_eq!(tick_two.files.len(), 1);
         assert_eq!(tick_two.files[0].processed_bytes, 90);
     }
+
+    // ── package_prepare_add_files: incremental behavior ───────────────────
+
+    fn make_prepare_registry() -> crate::state::PrepareRegistry {
+        use std::collections::HashMap;
+        use std::sync::{Arc, Mutex};
+        crate::state::PrepareRegistry::new(Arc::new(Mutex::new(HashMap::new())))
+    }
+
+    fn make_session_with_files(
+        pkg_id: &str,
+        file_names: &[(&str, &str)],
+    ) -> crate::state::PrepareSessionMeta {
+        // file_names: slice of (name, path) pairs
+        let files: Vec<PrepareFileState> = file_names
+            .iter()
+            .enumerate()
+            .map(|(idx, (name, path))| PrepareFileState {
+                file_id: format!("f{idx}"),
+                name: name.to_string(),
+                path: path.to_string(),
+                status: PrepareFileLifecycleState::Queued,
+                processed_bytes: 0,
+                total_bytes: 1024,
+                error: None,
+                hash: None,
+            })
+            .collect();
+        crate::state::PrepareSessionMeta::with_files(pkg_id.to_string(), files)
+    }
+
+    /// Adding a new path to an active session appends the file and advances
+    /// `next_file_seq`.
+    #[test]
+    fn add_files_to_session_appends_new_files_and_advances_seq() {
+        let registry = make_prepare_registry();
+        let session =
+            make_session_with_files("pkg-1", &[("a.txt", "/tmp/a.txt"), ("b.txt", "/tmp/b.txt")]);
+        registry
+            .insert_session("prep-1".to_string(), session)
+            .expect("insert session");
+
+        let new_name = "c.txt";
+        let new_path = "/tmp/c.txt";
+
+        let _ = registry.update_session("prep-1", |session| {
+            let already_known = session.files.iter().any(|existing| {
+                existing.path == new_path
+                    && existing.status != PrepareFileLifecycleState::Cancelled
+            });
+            assert!(!already_known, "path should not be known yet");
+
+            let file_id = format!("f{}", session.next_file_seq);
+            session.next_file_seq = session.next_file_seq.saturating_add(1);
+            session.files.push(build_initial_file_state(
+                file_id,
+                &crate::iroh::SourceFile {
+                    path: std::path::PathBuf::from(new_path),
+                    name: new_name.to_string(),
+                },
+            ));
+        });
+
+        let snap = registry.get_session("prep-1").expect("session exists");
+        assert_eq!(snap.files.len(), 3, "file count should grow to 3");
+        assert_eq!(snap.next_file_seq, 3);
+        assert_eq!(snap.files[2].name, "c.txt");
+        assert_eq!(snap.files[2].file_id, "f2");
+    }
+
+    /// Adding the same path a second time (while not cancelled) must be a no-op.
+    #[test]
+    fn add_files_skips_duplicate_active_path() {
+        let registry = make_prepare_registry();
+        let session = make_session_with_files("pkg-2", &[("a.txt", "/tmp/a.txt")]);
+        registry
+            .insert_session("prep-2".to_string(), session)
+            .expect("insert session");
+
+        let dup_path = "/tmp/a.txt";
+        let mut accepted = false;
+        let _ = registry.update_session("prep-2", |session| {
+            let already_known = session.files.iter().any(|existing| {
+                existing.path == dup_path
+                    && existing.status != PrepareFileLifecycleState::Cancelled
+            });
+            if already_known {
+                return;
+            }
+            let file_id = format!("f{}", session.next_file_seq);
+            session.next_file_seq = session.next_file_seq.saturating_add(1);
+            session.files.push(build_initial_file_state(
+                file_id,
+                &crate::iroh::SourceFile {
+                    path: std::path::PathBuf::from(dup_path),
+                    name: "a.txt".to_string(),
+                },
+            ));
+            accepted = true;
+        });
+
+        assert!(!accepted, "duplicate path should be rejected");
+        let snap = registry.get_session("prep-2").expect("session exists");
+        assert_eq!(snap.files.len(), 1, "file list must not grow");
+    }
+
+    /// A cancelled path is eligible to be re-added.
+    #[test]
+    fn add_files_allows_re_adding_cancelled_path() {
+        let registry = make_prepare_registry();
+        let mut session = make_session_with_files("pkg-3", &[("a.txt", "/tmp/a.txt")]);
+        session.files[0].status = PrepareFileLifecycleState::Cancelled;
+        registry
+            .insert_session("prep-3".to_string(), session)
+            .expect("insert session");
+
+        let path = "/tmp/a.txt";
+        let mut accepted = false;
+        let _ = registry.update_session("prep-3", |session| {
+            let already_known = session.files.iter().any(|existing| {
+                existing.path == path && existing.status != PrepareFileLifecycleState::Cancelled
+            });
+            if already_known {
+                return;
+            }
+            let file_id = format!("f{}", session.next_file_seq);
+            session.next_file_seq = session.next_file_seq.saturating_add(1);
+            session.files.push(build_initial_file_state(
+                file_id,
+                &crate::iroh::SourceFile {
+                    path: std::path::PathBuf::from(path),
+                    name: "a.txt".to_string(),
+                },
+            ));
+            accepted = true;
+        });
+
+        assert!(accepted, "cancelled path should be re-accepted");
+        let snap = registry.get_session("prep-3").expect("session exists");
+        assert_eq!(snap.files.len(), 2);
+    }
+
+    // ── Remove-while-preparing edge cases ─────────────────────────────────
+
+    /// A remove request that arrives before the worker touches the file must be
+    /// recorded and consumable exactly once.
+    #[test]
+    fn remove_request_is_registered_and_takeable_once() {
+        let registry = make_prepare_registry();
+        let session = make_session_with_files("pkg-4", &[("x.txt", "/tmp/x.txt")]);
+        registry
+            .insert_session("prep-r1".to_string(), session)
+            .expect("insert session");
+
+        let ok = registry
+            .request_remove_file("prep-r1", "f0")
+            .expect("request remove");
+        assert!(ok, "remove should be accepted for a known session");
+
+        let taken = registry
+            .take_remove_file_request("prep-r1", "f0")
+            .expect("take");
+        assert!(taken, "request should be present once");
+
+        let taken_again = registry
+            .take_remove_file_request("prep-r1", "f0")
+            .expect("take again");
+        assert!(!taken_again, "request must be consumed exactly once");
+    }
+
+    /// When a completed file is removed, its hash must be pruned from
+    /// `imported_hashes` so it is excluded from the finalize ticket.
+    #[test]
+    fn remove_file_prunes_hash_from_imported_hashes() {
+        let registry = make_prepare_registry();
+        let mut session = make_session_with_files(
+            "pkg-5",
+            &[("a.txt", "/tmp/a.txt"), ("b.txt", "/tmp/b.txt")],
+        );
+
+        let fake_hash_a = "aaaa".to_string();
+        let fake_hash_b = "bbbb".to_string();
+        session.files[0].hash = Some(fake_hash_a.clone());
+        session.files[0].status = PrepareFileLifecycleState::Completed;
+        session.files[1].hash = Some(fake_hash_b.clone());
+        session.files[1].status = PrepareFileLifecycleState::Completed;
+        session.imported_hashes = vec![
+            ("a.txt".to_string(), fake_hash_a),
+            ("b.txt".to_string(), fake_hash_b),
+        ];
+        registry
+            .insert_session("prep-r2".to_string(), session)
+            .expect("insert session");
+
+        // Simulate the cleanup done by package_prepare_remove_file.
+        let file_id_to_remove = "f0";
+        let _ = registry.update_session("prep-r2", |session| {
+            if let Some(file) = session
+                .files
+                .iter_mut()
+                .find(|f| f.file_id == file_id_to_remove)
+            {
+                if let Some(hash) = file.hash.take() {
+                    session
+                        .imported_hashes
+                        .retain(|(name, value)| !(name == &file.name && value == &hash));
+                }
+                file.status = PrepareFileLifecycleState::Cancelled;
+                file.error = None;
+            }
+        });
+
+        let snap = registry.get_session("prep-r2").expect("session exists");
+        assert_eq!(snap.imported_hashes.len(), 1);
+        assert_eq!(snap.imported_hashes[0].0, "b.txt");
+        assert_eq!(
+            snap.files
+                .iter()
+                .find(|f| f.file_id == "f0")
+                .unwrap()
+                .status,
+            PrepareFileLifecycleState::Cancelled
+        );
+    }
+
+    /// Removing a file that never completed (no hash) must not alter
+    /// `imported_hashes`.
+    #[test]
+    fn remove_file_without_hash_leaves_imported_hashes_intact() {
+        let registry = make_prepare_registry();
+        let mut session = make_session_with_files(
+            "pkg-6",
+            &[("a.txt", "/tmp/a.txt"), ("b.txt", "/tmp/b.txt")],
+        );
+        // Only b.txt finished – a.txt is still queued (no hash).
+        session.files[1].hash = Some("bbbb".to_string());
+        session.files[1].status = PrepareFileLifecycleState::Completed;
+        session.imported_hashes = vec![("b.txt".to_string(), "bbbb".to_string())];
+        registry
+            .insert_session("prep-r3".to_string(), session)
+            .expect("insert session");
+
+        let _ = registry.update_session("prep-r3", |session| {
+            if let Some(file) = session.files.iter_mut().find(|f| f.file_id == "f0") {
+                if let Some(hash) = file.hash.take() {
+                    session
+                        .imported_hashes
+                        .retain(|(name, value)| !(name == &file.name && value == &hash));
+                }
+                file.status = PrepareFileLifecycleState::Cancelled;
+            }
+        });
+
+        let snap = registry.get_session("prep-r3").expect("session");
+        assert_eq!(snap.imported_hashes.len(), 1);
+        assert_eq!(snap.imported_hashes[0].0, "b.txt");
+    }
+
+    // ── Finalize gating while prepare is still running ────────────────────
+
+    /// `has_task` must return `true` while a worker task is registered,
+    /// causing finalize to return an error.
+    #[tokio::test]
+    async fn finalize_blocked_while_task_is_registered() {
+        let registry = make_prepare_registry();
+        let session = make_session_with_files("pkg-7", &[("a.txt", "/tmp/a.txt")]);
+        registry
+            .insert_session("prep-f1".to_string(), session)
+            .expect("insert session");
+
+        let task = tauri::async_runtime::spawn(async {
+            tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+        });
+        registry
+            .register_task("prep-f1".to_string(), task)
+            .expect("register task");
+
+        assert!(
+            registry.has_task("prep-f1"),
+            "finalize must be blocked while task is registered"
+        );
+    }
+
+    /// After `retire_task` the gating check must clear.
+    #[tokio::test]
+    async fn finalize_allowed_after_task_retired() {
+        let registry = make_prepare_registry();
+        let session = make_session_with_files("pkg-8", &[("a.txt", "/tmp/a.txt")]);
+        registry
+            .insert_session("prep-f2".to_string(), session)
+            .expect("insert session");
+
+        let task = tauri::async_runtime::spawn(async {});
+        registry
+            .register_task("prep-f2".to_string(), task)
+            .expect("register task");
+
+        assert!(registry.has_task("prep-f2"), "task should be present");
+        registry.retire_task("prep-f2");
+        assert!(
+            !registry.has_task("prep-f2"),
+            "finalize should be allowed after task is retired"
+        );
+    }
+
+    /// Multiple tasks (one per `package_prepare_add_files` call) all need to
+    /// be retired before finalize is unblocked.
+    #[tokio::test]
+    async fn finalize_blocked_until_all_tasks_retired() {
+        let registry = make_prepare_registry();
+        let session = make_session_with_files(
+            "pkg-9",
+            &[("a.txt", "/tmp/a.txt"), ("b.txt", "/tmp/b.txt")],
+        );
+        registry
+            .insert_session("prep-f3".to_string(), session)
+            .expect("insert session");
+
+        for _ in 0..2 {
+            let task = tauri::async_runtime::spawn(async {
+                tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+            });
+            registry
+                .register_task("prep-f3".to_string(), task)
+                .expect("register task");
+        }
+
+        assert!(registry.has_task("prep-f3"), "still blocked after 0 retires");
+        registry.retire_task("prep-f3");
+        assert!(registry.has_task("prep-f3"), "still blocked after 1 retire");
+        registry.retire_task("prep-f3");
+        assert!(
+            !registry.has_task("prep-f3"),
+            "unblocked after all tasks retired"
+        );
+    }
 }

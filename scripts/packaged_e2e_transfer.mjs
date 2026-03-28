@@ -174,11 +174,37 @@ async function run() {
       },
     });
 
-    const created = await invokeCommand(senderSession, "package_create", {
+    // Step 1 – start the prepare session (imports the file into the iroh store).
+    const prepareStarted = await invokeCommand(senderSession, "package_prepare_start", {
       files: [senderFile],
       roots: [senderInputDir],
     });
-    const ticket = created.ticket;
+    const prepareSessionId = prepareStarted.prepareSessionId;
+
+    // Step 2 – poll until the prepare worker has finished (status "completed").
+    const prepareDeadline = Date.now() + 5_000;
+    let prepareSnapshot;
+    while (true) {
+      prepareSnapshot = await invokeCommand(senderSession, "package_prepare_status", {
+        prepareSessionId,
+      });
+      if (prepareSnapshot.done) {
+        break;
+      }
+      if (Date.now() > prepareDeadline) {
+        throw new Error(`package_prepare_status never became done within 5 s (last status: ${prepareSnapshot.status})`);
+      }
+      await delay(50);
+    }
+    if (prepareSnapshot.status !== "completed") {
+      throw new Error(`prepare session ended with unexpected status: ${prepareSnapshot.status}`);
+    }
+
+    // Step 3 – finalize to get the shareable ticket.
+    const finalized = await invokeCommand(senderSession, "package_prepare_finalize", {
+      prepareSessionId,
+    });
+    const ticket = finalized.ticket;
 
     await receiverSession
       .wait(until.elementLocated(By.css('a[href="#/receive"]')), 10_000)
