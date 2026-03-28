@@ -1,7 +1,9 @@
 import { useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrent, onOpenUrl } from "@tauri-apps/plugin-deep-link";
 import { check } from "@tauri-apps/plugin-updater";
+import { toast } from "sonner";
 import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "./layout/AppShell";
 import { PackagePage } from "./pages/PackagePage";
@@ -9,6 +11,7 @@ import { ReceivePage } from "./pages/ReceivePage";
 import { SendPage } from "./pages/SendPage";
 import { useAppStore } from "./store/appStore";
 import { type Settings } from "./types/domain";
+import { resolveTicketInput } from "./lib/ticketLink";
 import { Toaster } from "sonner";
 
 type TransferPeerConnectedEvent = {
@@ -36,6 +39,16 @@ type TransferErrorEvent = {
   packageId?: string;
   code: string;
   message: string;
+};
+
+type PackagePreviewResponse = {
+  packageId: string;
+  files: Array<{
+    name: string;
+    sizeBytes: number;
+    mimeType: string;
+  }>;
+  totalSizeBytes: number;
 };
 
 function normalizeLoadedSettings(
@@ -208,6 +221,83 @@ function App() {
       disposeError();
     };
   }, [applyCompletedEvent, applyErrorEvent, applyPeerConnectedEvent, applyProgressEvent]);
+
+  useEffect(() => {
+    let unlistenOpenUrl: (() => void) | null = null;
+    let active = true;
+
+    const applyUrl = async (rawUrl: string) => {
+      const ticket = resolveTicketInput(rawUrl);
+      if (!ticket) {
+        return false;
+      }
+
+      try {
+        const preview = await invoke<PackagePreviewResponse>("package_preview", { ticket });
+        const store = useAppStore.getState();
+        const localId = store.createReceivePreviewPackage({
+          packageId: preview.packageId,
+          ticket,
+          totalSizeBytes: preview.totalSizeBytes,
+          files: preview.files.map((file, index) => ({
+            id: `recv-${index}`,
+            name: file.name,
+            sizeBytes: file.sizeBytes,
+            mimeType: file.mimeType,
+          })),
+        });
+
+        store.setReceiveDraftTicket("");
+        store.setAutoFilledClipboardTicket(null);
+        store.setAutoPreviewedClipboardTicket(ticket);
+        window.location.hash = `#/package/${localId}`;
+        return true;
+      } catch (error) {
+        console.error("Failed to preview package from deep link", error);
+        toast.error("Could not open QuickSend link.");
+        return false;
+      }
+    };
+
+    const processUrls = async (urls: string[] | null | undefined) => {
+      if (!urls || urls.length === 0) {
+        return;
+      }
+
+      let applied = false;
+      for (const url of urls) {
+        if (await applyUrl(url)) {
+          applied = true;
+          break;
+        }
+      }
+      if (!applied) {
+        toast.error("QuickSend link was invalid.");
+      }
+    };
+
+    const setup = async () => {
+      try {
+        await processUrls(await getCurrent());
+        unlistenOpenUrl = await onOpenUrl((urls) => {
+          void processUrls(urls);
+        });
+      } catch (error) {
+        if (active) {
+          console.error("Failed to initialize deep-link handling", error);
+        }
+      }
+    };
+
+    void setup();
+
+    return () => {
+      active = false;
+      if (unlistenOpenUrl) {
+        unlistenOpenUrl();
+      }
+    };
+  }, []);
 
   return (
     <>

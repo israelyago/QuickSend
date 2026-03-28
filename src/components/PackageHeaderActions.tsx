@@ -43,13 +43,13 @@ export function PackageHeaderActions({
                 className="flex cursor-pointer items-center gap-3 rounded-md border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 p-3 text-xs text-slate-700 dark:text-zinc-200 transition hover:border-slate-300 dark:hover:border-zinc-600"
                 onClick={onCopyTicket}
                 role="button"
-                aria-label="Copy package ticket"
+                aria-label="Copy package address"
               >
                 <span className="min-w-0 flex-1 truncate">{maskedTicket}</span>
                 <Copy className="h-5 w-5 text-slate-500 dark:text-zinc-400" aria-hidden="true" />
               </div>
             </TooltipTrigger>
-            <TooltipContent>Click on the ticket to copy again it.</TooltipContent>
+            <TooltipContent>Click on the address to copy it again.</TooltipContent>
           </Tooltip>
         ) : null}
       </div>

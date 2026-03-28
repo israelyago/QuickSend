@@ -3,7 +3,7 @@ SHELL := /bin/bash
 INSTANCES ?= 2
 THROTTLE_MS ?= 0
 APP_NAME ?= quicksend
-BIN := src-tauri/target/release/$(APP_NAME)
+BIN := src-tauri/target/debug/$(APP_NAME)
 TMP_ROOT := /tmp/$(APP_NAME)-manual-test-instances
 LOG_ROOT := $(TMP_ROOT)/logs
 SKIP_BUILD ?= 0
@@ -21,7 +21,7 @@ fi
 .PHONY: build-fast manual-test desktop-e2e-smoke desktop-e2e-click desktop-e2e-transfer desktop-e2e-all
 
 build-fast:
-	cargo tauri build --no-bundle
+	cargo tauri build --debug --no-bundle
 
 manual-test:
 	@set -euo pipefail; \

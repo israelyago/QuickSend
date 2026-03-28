@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useAppStore } from "../store/appStore";
 import { ReceivePackageCard } from "../components/ReceivePackageCard";
 import { useReceiveClipboardTicketSync } from "../hooks/useReceiveClipboardTicketSync";
+import { resolveTicketInput } from "../lib/ticketLink";
 
 type PackagePreviewResponse = {
   packageId: string;
@@ -14,10 +15,6 @@ type PackagePreviewResponse = {
   }>;
   totalSizeBytes: number;
 };
-
-function isLikelyTicket(ticket: string) {
-  return ticket.trim().startsWith("blob");
-}
 
 export function ReceivePage() {
   const navigate = useNavigate();
@@ -43,11 +40,11 @@ export function ReceivePage() {
       setBusy(true);
       setError(null);
       try {
-        if (!isLikelyTicket(rawTicket)) {
+        const ticket = resolveTicketInput(rawTicket);
+        if (!ticket) {
           throw new Error("Ticket format looks invalid.");
         }
 
-        const ticket = rawTicket.trim();
         const preview = await invoke<PackagePreviewResponse>("package_preview", { ticket });
 
         const localId = createReceivePreviewPackage({
@@ -62,7 +59,7 @@ export function ReceivePage() {
           })),
         });
 
-        setAutoPreviewedClipboardTicket(ticket);
+        setAutoPreviewedClipboardTicket(rawTicket.trim());
         setReceiveDraftTicket("");
         navigate(`/package/${localId}`);
       } catch (cause) {
@@ -92,7 +89,9 @@ export function ReceivePage() {
     <section className="space-y-6">
       <header>
         <h2 className="text-2xl font-semibold">Receive</h2>
-        <p className="text-sm text-muted-foreground">Paste a ticket and preview package contents.</p>
+        <p className="text-sm text-muted-foreground">
+          Paste a QuickSend link or a ticket and preview package contents.
+        </p>
       </header>
 
       <div className="rounded-lg border border-border bg-card p-4">
@@ -102,7 +101,7 @@ export function ReceivePage() {
         <textarea
           id="ticket-input"
           className="h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
-          placeholder="Paste package ticket here"
+          placeholder="Paste quicksend://receive?... or blob ticket"
           value={receiveDraftTicket}
           onChange={(event) => setReceiveDraftTicket(event.target.value)}
         />

@@ -11,6 +11,7 @@ use std::{
 };
 
 use tauri::{Manager, RunEvent};
+use tauri_plugin_deep_link::DeepLinkExt;
 
 use crate::{
     iroh::IrohNode,
@@ -23,7 +24,17 @@ use crate::{
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let app = tauri::Builder::default()
+    let builder = tauri::Builder::default();
+
+    #[cfg(all(desktop, not(debug_assertions)))]
+    let builder = {
+        builder.plugin(tauri_plugin_single_instance::init(|_, _, _| {
+            // Deep link payload delivery is handled by the deep-link plugin event.
+        }))
+    };
+
+    let app = builder
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -42,6 +53,11 @@ pub fn run() {
             commands::transfer_cancel
         ])
         .setup(|app| {
+            #[cfg(any(target_os = "linux", all(debug_assertions, windows)))]
+            {
+                app.deep_link().register_all()?;
+            }
+
             let instance_id = next_id("iroh");
             let node_dir = std::env::temp_dir()
                 .join("quicksend")

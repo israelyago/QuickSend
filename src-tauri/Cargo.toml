@@ -1,6 +1,6 @@
 [package]
 name = "quicksend"
-version = "0.3.1"
+version = "0.3.2"
 description = "Send files peer to peer"
 authors = ["Israel Yago Pereira"]
 edition = "2021"
@@ -22,6 +22,7 @@ tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-clipboard-manager = "2"
+tauri-plugin-deep-link = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 iroh = "0.97.0"
@@ -35,3 +36,6 @@ n0-future = "0.1"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"
+
+[target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }

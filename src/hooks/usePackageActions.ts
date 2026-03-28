@@ -4,6 +4,7 @@ import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { toast } from "sonner";
 import { type Package, type Settings } from "../types/domain";
+import { buildReceiveLink } from "../lib/ticketLink";
 
 type PackageCreateResponse = {
   sessionId: string;
@@ -46,14 +47,15 @@ export function usePackageActions({
       if (!ticketToCopy) {
         return;
       }
+      const receiveLink = buildReceiveLink(ticketToCopy);
 
       try {
-        await writeText(ticketToCopy);
+        await writeText(receiveLink);
         setError(null);
         toast.success("Copied!");
       } catch (pluginError) {
         try {
-          await navigator.clipboard.writeText(ticketToCopy);
+          await navigator.clipboard.writeText(receiveLink);
           setError(null);
           toast.success("Copied!");
         } catch (fallbackError) {
@@ -156,7 +158,7 @@ export function usePackageActions({
   }, [packageData.downloadDir, settings.downloadDir]);
 
   const maskedTicket = useMemo(
-    () => (packageData.ticket ? `${packageData.ticket.slice(0, 12)}...` : ""),
+    () => (packageData.ticket ? `${buildReceiveLink(packageData.ticket).slice(0, 24)}...` : ""),
     [packageData.ticket],
   );
 
