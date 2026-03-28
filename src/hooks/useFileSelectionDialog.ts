@@ -20,5 +20,19 @@ export function useFileSelectionDialog({ title }: Args) {
     return Array.isArray(selected) ? selected : [selected];
   }, [title]);
 
-  return { selectFiles };
+  const selectFolders = useCallback(async () => {
+    const selected = await open({
+      multiple: false,
+      directory: true,
+      title,
+    });
+
+    if (!selected) {
+      return null;
+    }
+
+    return Array.isArray(selected) ? selected : [selected];
+  }, [title]);
+
+  return { selectFiles, selectFolders };
 }

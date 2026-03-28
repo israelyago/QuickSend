@@ -22,6 +22,7 @@ type Props = {
   settings: Settings;
   onCancelDownload: () => void;
   onSelectAdditionalFiles: () => void;
+  onSelectFolder: () => void;
   setActiveMenuId: (id: string | null) => void;
   setActiveMenuRect: (rect: DOMRect | null) => void;
   removeFileFromPackage: (payload: { packageId: string; fileId: string }) => void;
@@ -52,6 +53,7 @@ export function PackagePageContent({
   settings,
   onCancelDownload,
   onSelectAdditionalFiles,
+  onSelectFolder,
   setActiveMenuId,
   setActiveMenuRect,
   removeFileFromPackage,
@@ -66,6 +68,7 @@ export function PackagePageContent({
         <PackageFileDropzone
           isDragActive={isDragActive}
           onSelectAdditionalFiles={onSelectAdditionalFiles}
+          onSelectFolder={onSelectFolder}
         />
       ) : null}
 

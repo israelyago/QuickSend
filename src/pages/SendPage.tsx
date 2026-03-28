@@ -11,7 +11,7 @@ export function SendPage() {
   const [error, setError] = useState<string | null>(null);
 
   const createSendDraftPackage = useAppStore((state) => state.createSendDraftPackage);
-  const { selectFiles: selectFilesWithDialog } = useFileSelectionDialog({ title: "Select files to send" });
+  const { selectFiles: selectFilesWithDialog, selectFolders: selectFoldersWithDialog } = useFileSelectionDialog({ title: "Select files to send" });
 
   const createPackageFromPaths = useCallback(
     async (paths: string[]) => {
@@ -58,17 +58,20 @@ export function SendPage() {
     void createPackageFromPaths(paths);
   }
 
+  async function selectFolders() {
+    setError(null);
+    const paths = await selectFoldersWithDialog();
+    if (!paths) {
+      return;
+    }
+    void createPackageFromPaths(paths);
+  }
+
   return (
     <section className="space-y-6">
-      <header>
-        <h2 className="text-2xl font-semibold">Send</h2>
-        <p className="text-sm text-muted-foreground">
-          Pick files, then generate a package ticket from Package View.
-        </p>
-      </header>
 
       <div>
-        <PackageFileDropzone isDragActive={isDragActive} onSelectAdditionalFiles={selectFiles} />
+        <PackageFileDropzone isDragActive={isDragActive} onSelectAdditionalFiles={selectFiles} onSelectFolder={selectFolders} />
 
         {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
       </div>

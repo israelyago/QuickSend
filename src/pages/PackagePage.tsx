@@ -79,7 +79,7 @@ export function PackagePage() {
     setActiveMenuRect,
   } = useRowActionMenu({ canEditFiles, rows });
   const { progressPercent, rateBps, etaSeconds } = useReceiveTransferStats({ packageData });
-  const { selectFiles } = useFileSelectionDialog({ title: "Select files to add" });
+  const { selectFiles, selectFolders } = useFileSelectionDialog({ title: "Select files to add" });
 
   const addFilesFromPaths = useCallback(
     async (paths: string[]) => {
@@ -128,6 +128,18 @@ export function PackagePage() {
     }
     void addFilesFromPaths(paths);
   }, [addFilesFromPaths, canEditFiles, selectFiles]);
+
+  const selectAdditionalFolders = useCallback(async () => {
+    if (!canEditFiles) {
+      return;
+    }
+    const paths = await selectFolders();
+    if (!paths) {
+      return;
+    }
+    void addFilesFromPaths(paths);
+  }, [addFilesFromPaths, canEditFiles, selectFolders]);
+
   useAutoDownloadOnIdleReceive({
     busy,
     packageData,
@@ -174,6 +186,7 @@ export function PackagePage() {
           rateBps={rateBps}
           isDragActive={isDragActive}
           onSelectAdditionalFiles={selectAdditionalFiles}
+          onSelectFolder={selectAdditionalFolders}
           onCancelDownload={() => {
             void cancelDownload();
           }}

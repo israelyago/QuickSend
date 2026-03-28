@@ -25,6 +25,7 @@ const defaultProps = {
   },
   onCancelDownload: vi.fn(),
   onSelectAdditionalFiles: vi.fn(),
+  onSelectFolder: vi.fn(),
   setActiveMenuId: vi.fn(),
   setActiveMenuRect: vi.fn(),
   removeFileFromPackage: vi.fn(),

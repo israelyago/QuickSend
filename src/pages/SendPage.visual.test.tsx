@@ -13,7 +13,7 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({
 
 vi.mock("@tauri-apps/api/webview", () => ({
   getCurrentWebview: () => ({
-    onDragDropEvent: vi.fn(async () => () => {}),
+    onDragDropEvent: vi.fn(async () => () => { }),
   }),
 }));
 
@@ -57,7 +57,7 @@ describe("Send -> Package visual flow", () => {
       </MemoryRouter>,
     );
 
-    await user.click(screen.getByRole("button", { name: /drag and drop files here/i }));
+    await user.click(screen.getByRole("button", { name: /Add files/i }));
 
     expect(vi.mocked(open)).toHaveBeenCalled();
     expect(vi.mocked(invoke)).toHaveBeenCalledWith("inspect_files", {
