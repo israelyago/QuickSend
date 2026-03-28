@@ -17,6 +17,15 @@ export type PackageRow = FileRow | FolderRow;
 export function usePackageRows(packageData: Package) {
   return useMemo<PackageRow[]>(() => {
     const normalizePath = (value: string) => value.replace(/\\/g, "/");
+    const showPerFilePrepare =
+      packageData.mode === "send" &&
+      packageData.prepareStatus !== undefined &&
+      packageData.prepareStatus !== "idle" &&
+      !packageData.ticket;
+
+    if (showPerFilePrepare) {
+      return packageData.files.map((file) => ({ kind: "file", id: file.id, file }));
+    }
 
     if (packageData.mode === "send" && packageData.selectedRoots?.length) {
       const filesWithPaths = packageData.files
@@ -109,5 +118,11 @@ export function usePackageRows(packageData: Package) {
     }
 
     return packageData.files.map((file) => ({ kind: "file", id: file.id, file }));
-  }, [packageData.files, packageData.mode, packageData.selectedRoots]);
+  }, [
+    packageData.files,
+    packageData.mode,
+    packageData.prepareStatus,
+    packageData.selectedRoots,
+    packageData.ticket,
+  ]);
 }

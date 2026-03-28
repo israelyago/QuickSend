@@ -13,6 +13,10 @@ export type FileEntry = {
   sizeBytes: number;
   mimeType: string;
   sourcePath?: string;
+  prepareBackendFileId?: string;
+  prepareStatus?: "queued" | "importing" | "verifying" | "completed" | "failed" | "cancelled";
+  prepareProcessedBytes?: number;
+  prepareError?: string;
 };
 
 export type Package = {
@@ -27,6 +31,16 @@ export type Package = {
   transferredBytes?: number;
   peerId?: string;
   status: TransferStatus;
+  prepareSessionId?: string;
+  prepareStatus?: "idle" | "preparing" | "completed" | "failed" | "cancelled";
+  prepareProgress?: {
+    completedFiles: number;
+    failedFiles: number;
+    cancelledFiles: number;
+    totalFiles: number;
+    processedBytes: number;
+    totalBytes: number;
+  };
   ticket?: string;
   downloadDir?: string;
   createdAtIso: string;

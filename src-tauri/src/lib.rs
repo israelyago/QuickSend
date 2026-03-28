@@ -18,7 +18,7 @@ use crate::{
     services::transfer::{
         cleanup_iroh_node_dir, configured_throttle_delay, run_provider_event_bridge,
     },
-    state::{cancel_all_downloads, IrohAppState, TransferRegistry},
+    state::{cancel_all_downloads, IrohAppState, PrepareRegistry, TransferRegistry},
     utils::ids::next_id,
 };
 
@@ -43,6 +43,10 @@ pub fn run() {
             commands::ping,
             commands::inspect_files,
             commands::package_create,
+            commands::package_prepare_start,
+            commands::package_prepare_finalize,
+            commands::package_prepare_cancel,
+            commands::package_prepare_remove_file,
             commands::package_preview,
             commands::logs_dir,
             commands::open_logs_dir,
@@ -71,6 +75,8 @@ pub fn run() {
             let downloads = Arc::new(Mutex::new(HashMap::new()));
             let registry =
                 TransferRegistry::new(sessions.clone(), hash_to_session.clone(), downloads.clone());
+            let prepare_sessions = Arc::new(Mutex::new(HashMap::new()));
+            let prepare_registry = PrepareRegistry::new(prepare_sessions);
             let throttle_delay = configured_throttle_delay();
 
             tauri::async_runtime::spawn(run_provider_event_bridge(
@@ -83,6 +89,7 @@ pub fn run() {
             app.manage(IrohAppState {
                 node: tokio::sync::Mutex::new(Some(Arc::new(node))),
                 registry,
+                prepare_registry,
                 node_dir,
             });
             Ok(())

@@ -41,6 +41,43 @@ type TransferErrorEvent = {
   message: string;
 };
 
+type SendPrepareProgressEvent = {
+  prepareSessionId: string;
+  packageId: string;
+  status: "queued" | "running" | "completed" | "failed" | "cancelled";
+  summary: {
+    totalFiles: number;
+    completedFiles: number;
+    failedFiles: number;
+    cancelledFiles: number;
+    processedBytes: number;
+    totalBytes: number;
+  };
+  files: Array<{
+    fileId: string;
+    name: string;
+    path: string;
+    status: "queued" | "importing" | "verifying" | "completed" | "failed" | "cancelled";
+    processedBytes: number;
+    totalBytes: number;
+    error?: string;
+  }>;
+  sequence: number;
+  done: boolean;
+  changedFileIds: string[];
+};
+
+type SendPrepareCompletedEvent = {
+  prepareSessionId: string;
+  packageId: string;
+};
+
+type SendPrepareErrorEvent = {
+  prepareSessionId: string;
+  packageId: string;
+  status?: "failed" | "cancelled";
+};
+
 type PackagePreviewResponse = {
   packageId: string;
   files: Array<{
@@ -90,6 +127,10 @@ function App() {
   const applyProgressEvent = useAppStore((state) => state.applyProgressEvent);
   const applyCompletedEvent = useAppStore((state) => state.applyCompletedEvent);
   const applyErrorEvent = useAppStore((state) => state.applyErrorEvent);
+  const applySendPrepareProgressEvent = useAppStore((state) => state.applySendPrepareProgressEvent);
+  const markSendPrepareCompleted = useAppStore((state) => state.markSendPrepareCompleted);
+  const markSendPrepareFailed = useAppStore((state) => state.markSendPrepareFailed);
+  const markSendPrepareCancelled = useAppStore((state) => state.markSendPrepareCancelled);
   const settingsReady = useRef(false);
   const updateCheckAttempted = useRef(false);
 
@@ -192,6 +233,9 @@ function App() {
     let disposeProgress = () => {};
     let disposeCompleted = () => {};
     let disposeError = () => {};
+    let disposePrepareProgress = () => {};
+    let disposePrepareCompleted = () => {};
+    let disposePrepareError = () => {};
 
     const setup = async () => {
       const unlistenPeer = await listen("transfer:peer-connected", (event) => {
@@ -206,10 +250,28 @@ function App() {
       const unlistenError = await listen("transfer:error", (event) => {
         applyErrorEvent(event.payload as TransferErrorEvent);
       });
+      const unlistenPrepareProgress = await listen("send:prepare-progress", (event) => {
+        applySendPrepareProgressEvent(event.payload as SendPrepareProgressEvent);
+      });
+      const unlistenPrepareCompleted = await listen("send:prepare-completed", (event) => {
+        const payload = event.payload as SendPrepareCompletedEvent;
+        markSendPrepareCompleted(payload.prepareSessionId);
+      });
+      const unlistenPrepareError = await listen("send:prepare-error", (event) => {
+        const payload = event.payload as SendPrepareErrorEvent;
+        if (payload.status === "cancelled") {
+          markSendPrepareCancelled(payload.prepareSessionId);
+          return;
+        }
+        markSendPrepareFailed(payload.prepareSessionId);
+      });
       disposePeer = unlistenPeer;
       disposeProgress = unlistenProgress;
       disposeCompleted = unlistenCompleted;
       disposeError = unlistenError;
+      disposePrepareProgress = unlistenPrepareProgress;
+      disposePrepareCompleted = unlistenPrepareCompleted;
+      disposePrepareError = unlistenPrepareError;
     };
 
     void setup();
@@ -219,8 +281,20 @@ function App() {
       disposeProgress();
       disposeCompleted();
       disposeError();
+      disposePrepareProgress();
+      disposePrepareCompleted();
+      disposePrepareError();
     };
-  }, [applyCompletedEvent, applyErrorEvent, applyPeerConnectedEvent, applyProgressEvent]);
+  }, [
+    applyCompletedEvent,
+    applyErrorEvent,
+    applyPeerConnectedEvent,
+    applyProgressEvent,
+    applySendPrepareProgressEvent,
+    markSendPrepareCancelled,
+    markSendPrepareCompleted,
+    markSendPrepareFailed,
+  ]);
 
   useEffect(() => {
     let unlistenOpenUrl: (() => void) | null = null;

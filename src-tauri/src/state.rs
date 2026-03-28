@@ -1,7 +1,8 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::PathBuf,
     sync::{Arc, Mutex},
+    time::SystemTime,
 };
 
 use crate::iroh::IrohNode;
@@ -239,11 +240,318 @@ impl TransferRegistry {
 pub struct IrohAppState {
     pub node: tokio::sync::Mutex<Option<Arc<IrohNode>>>,
     pub registry: TransferRegistry,
+    pub prepare_registry: PrepareRegistry,
     pub node_dir: PathBuf,
 }
 
 pub fn cancel_all_downloads(state: &IrohAppState) {
     state.registry.cancel_all();
+    state.prepare_registry.cancel_all();
+}
+
+#[derive(Clone)]
+pub struct PrepareSessionMeta {
+    pub package_id: String,
+    pub started_at: SystemTime,
+    pub files: Vec<PrepareFileState>,
+    pub imported_hashes: Vec<(String, String)>,
+    pub emit_sequence: u64,
+}
+
+impl PrepareSessionMeta {
+    pub fn new(package_id: String) -> Self {
+        Self {
+            package_id,
+            started_at: SystemTime::now(),
+            files: Vec::new(),
+            imported_hashes: Vec::new(),
+            emit_sequence: 0,
+        }
+    }
+
+    pub fn with_files(package_id: String, files: Vec<PrepareFileState>) -> Self {
+        Self {
+            package_id,
+            started_at: SystemTime::now(),
+            files,
+            imported_hashes: Vec::new(),
+            emit_sequence: 0,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PrepareFileLifecycleState {
+    Queued,
+    Importing,
+    Verifying,
+    Completed,
+    Failed,
+    Cancelled,
+}
+
+#[derive(Clone, Debug)]
+pub struct PrepareFileState {
+    pub file_id: String,
+    pub name: String,
+    pub path: String,
+    pub status: PrepareFileLifecycleState,
+    pub processed_bytes: u64,
+    pub total_bytes: u64,
+    pub error: Option<String>,
+    pub hash: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PrepareLifecycleState {
+    Queued,
+    Running,
+    Completed,
+    Failed,
+    Cancelled,
+}
+
+impl PrepareLifecycleState {
+    fn can_transition_to(self, next: Self) -> bool {
+        matches!(
+            (self, next),
+            (Self::Queued, Self::Running)
+                | (Self::Queued, Self::Failed)
+                | (Self::Queued, Self::Cancelled)
+                | (Self::Running, Self::Completed)
+                | (Self::Running, Self::Failed)
+                | (Self::Running, Self::Cancelled)
+        )
+    }
+
+    fn is_terminal(self) -> bool {
+        matches!(self, Self::Completed | Self::Failed | Self::Cancelled)
+    }
+}
+
+#[derive(Clone)]
+pub struct PrepareRegistry {
+    sessions: Arc<Mutex<HashMap<String, PrepareSessionMeta>>>,
+    lifecycle: Arc<Mutex<HashMap<String, PrepareLifecycleState>>>,
+    tasks: Arc<Mutex<HashMap<String, tauri::async_runtime::JoinHandle<()>>>>,
+    cancel_requests: Arc<Mutex<HashSet<String>>>,
+    remove_requests: Arc<Mutex<HashMap<String, HashSet<String>>>>,
+}
+
+impl PrepareRegistry {
+    pub fn new(sessions: Arc<Mutex<HashMap<String, PrepareSessionMeta>>>) -> Self {
+        Self {
+            sessions,
+            lifecycle: Arc::new(Mutex::new(HashMap::new())),
+            tasks: Arc::new(Mutex::new(HashMap::new())),
+            cancel_requests: Arc::new(Mutex::new(HashSet::new())),
+            remove_requests: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    pub fn insert_session(
+        &self,
+        session_id: String,
+        meta: PrepareSessionMeta,
+    ) -> Result<(), String> {
+        let mut sessions = self
+            .sessions
+            .lock()
+            .map_err(|_| "prepare sessions lock poisoned".to_string())?;
+        sessions.insert(session_id.clone(), meta);
+
+        let mut lifecycle = self
+            .lifecycle
+            .lock()
+            .map_err(|_| "prepare lifecycle lock poisoned".to_string())?;
+        lifecycle.insert(session_id, PrepareLifecycleState::Queued);
+        Ok(())
+    }
+
+    pub fn get_session(&self, session_id: &str) -> Option<PrepareSessionMeta> {
+        self.sessions
+            .lock()
+            .ok()
+            .and_then(|map| map.get(session_id).cloned())
+    }
+
+    pub fn remove_session(&self, session_id: &str) -> Option<PrepareSessionMeta> {
+        self.sessions
+            .lock()
+            .ok()
+            .and_then(|mut map| map.remove(session_id))
+    }
+
+    pub fn get_lifecycle_state(&self, session_id: &str) -> Option<PrepareLifecycleState> {
+        self.lifecycle
+            .lock()
+            .ok()
+            .and_then(|map| map.get(session_id).copied())
+    }
+
+    pub fn transition_state(
+        &self,
+        session_id: &str,
+        next: PrepareLifecycleState,
+    ) -> Result<bool, String> {
+        let mut lifecycle = self
+            .lifecycle
+            .lock()
+            .map_err(|_| "prepare lifecycle lock poisoned".to_string())?;
+
+        let Some(current) = lifecycle.get(session_id).copied() else {
+            return Ok(false);
+        };
+
+        if current == next {
+            return Ok(true);
+        }
+
+        if !current.can_transition_to(next) {
+            return Ok(false);
+        }
+
+        lifecycle.insert(session_id.to_string(), next);
+        Ok(true)
+    }
+
+    pub fn update_session<F>(&self, session_id: &str, update: F) -> Result<bool, String>
+    where
+        F: FnOnce(&mut PrepareSessionMeta),
+    {
+        let mut sessions = self
+            .sessions
+            .lock()
+            .map_err(|_| "prepare sessions lock poisoned".to_string())?;
+        let Some(session) = sessions.get_mut(session_id) else {
+            return Ok(false);
+        };
+        update(session);
+        Ok(true)
+    }
+
+    pub fn register_task(
+        &self,
+        session_id: String,
+        task: tauri::async_runtime::JoinHandle<()>,
+    ) -> Result<(), String> {
+        let mut tasks = self
+            .tasks
+            .lock()
+            .map_err(|_| "prepare tasks lock poisoned".to_string())?;
+        tasks.insert(session_id, task);
+        Ok(())
+    }
+
+    pub fn take_task(&self, session_id: &str) -> Option<tauri::async_runtime::JoinHandle<()>> {
+        self.tasks
+            .lock()
+            .ok()
+            .and_then(|mut map| map.remove(session_id))
+    }
+
+    pub fn request_cancel(&self, session_id: &str) -> Result<bool, String> {
+        if self.get_session(session_id).is_none() {
+            return Ok(false);
+        }
+
+        let mut cancel_requests = self
+            .cancel_requests
+            .lock()
+            .map_err(|_| "prepare cancel requests lock poisoned".to_string())?;
+        cancel_requests.insert(session_id.to_string());
+        Ok(true)
+    }
+
+    pub fn is_cancel_requested(&self, session_id: &str) -> bool {
+        self.cancel_requests
+            .lock()
+            .ok()
+            .map(|set| set.contains(session_id))
+            .unwrap_or(false)
+    }
+
+    pub fn request_remove_file(&self, session_id: &str, file_id: &str) -> Result<bool, String> {
+        if self.get_session(session_id).is_none() {
+            return Ok(false);
+        }
+
+        let mut remove_requests = self
+            .remove_requests
+            .lock()
+            .map_err(|_| "prepare remove requests lock poisoned".to_string())?;
+        remove_requests
+            .entry(session_id.to_string())
+            .or_default()
+            .insert(file_id.to_string());
+        Ok(true)
+    }
+
+    pub fn take_remove_file_request(
+        &self,
+        session_id: &str,
+        file_id: &str,
+    ) -> Result<bool, String> {
+        let mut remove_requests = self
+            .remove_requests
+            .lock()
+            .map_err(|_| "prepare remove requests lock poisoned".to_string())?;
+        let Some(files) = remove_requests.get_mut(session_id) else {
+            return Ok(false);
+        };
+        let removed = files.remove(file_id);
+        if files.is_empty() {
+            remove_requests.remove(session_id);
+        }
+        Ok(removed)
+    }
+
+    pub fn cancel_session(&self, session_id: &str) -> Result<bool, String> {
+        self.request_cancel(session_id)
+    }
+
+    pub fn cleanup_session(&self, session_id: &str) {
+        if let Some(task) = self.take_task(session_id) {
+            task.abort();
+        }
+        let _ = self.remove_session(session_id);
+        if let Ok(mut lifecycle) = self.lifecycle.lock() {
+            lifecycle.remove(session_id);
+        }
+        if let Ok(mut cancel_requests) = self.cancel_requests.lock() {
+            cancel_requests.remove(session_id);
+        }
+        if let Ok(mut remove_requests) = self.remove_requests.lock() {
+            remove_requests.remove(session_id);
+        }
+    }
+
+    pub fn cancel_all(&self) {
+        if let Ok(mut lifecycle) = self.lifecycle.lock() {
+            for state in lifecycle.values_mut() {
+                if !state.is_terminal() {
+                    *state = PrepareLifecycleState::Cancelled;
+                }
+            }
+            lifecycle.clear();
+        }
+
+        if let Ok(mut tasks) = self.tasks.lock() {
+            for (_, task) in tasks.drain() {
+                task.abort();
+            }
+        }
+
+        if let Ok(mut sessions) = self.sessions.lock() {
+            sessions.clear();
+        }
+        if let Ok(mut cancel_requests) = self.cancel_requests.lock() {
+            cancel_requests.clear();
+        }
+        if let Ok(mut remove_requests) = self.remove_requests.lock() {
+            remove_requests.clear();
+        }
+    }
 }
 
 #[cfg(test)]
@@ -426,6 +734,7 @@ mod tests {
         let state = IrohAppState {
             node: tokio::sync::Mutex::new(None),
             registry: registry.clone(),
+            prepare_registry: make_prepare_registry(),
             node_dir: std::env::temp_dir().join("quicksend-test-node-dir"),
         };
 
@@ -434,5 +743,47 @@ mod tests {
         assert!(registry.get_session("s7").is_none());
         assert!(registry.lookup_session_by_hash("h7").is_none());
         assert!(registry.remove_download("s7").is_none());
+    }
+
+    fn make_prepare_registry() -> PrepareRegistry {
+        PrepareRegistry::new(Arc::new(Mutex::new(HashMap::new())))
+    }
+
+    #[test]
+    fn prepare_lifecycle_transitions_are_enforced() {
+        let registry = make_prepare_registry();
+        let session = PrepareSessionMeta::new("pkg-1".to_string());
+        registry
+            .insert_session("prep-1".to_string(), session)
+            .expect("insert prepare session");
+
+        assert_eq!(
+            registry.get_lifecycle_state("prep-1"),
+            Some(PrepareLifecycleState::Queued)
+        );
+        assert!(registry
+            .transition_state("prep-1", PrepareLifecycleState::Running)
+            .expect("queued -> running"));
+        assert!(registry
+            .transition_state("prep-1", PrepareLifecycleState::Completed)
+            .expect("running -> completed"));
+        assert!(!registry
+            .transition_state("prep-1", PrepareLifecycleState::Cancelled)
+            .expect("completed is terminal"));
+    }
+
+    #[test]
+    fn prepare_cancel_and_cleanup_remove_session() {
+        let registry = make_prepare_registry();
+        let session = PrepareSessionMeta::new("pkg-2".to_string());
+        registry
+            .insert_session("prep-2".to_string(), session)
+            .expect("insert prepare session");
+
+        assert!(registry.cancel_session("prep-2").expect("cancel session"));
+        assert!(registry.is_cancel_requested("prep-2"));
+        registry.cleanup_session("prep-2");
+        assert!(registry.get_session("prep-2").is_none());
+        assert!(registry.get_lifecycle_state("prep-2").is_none());
     }
 }

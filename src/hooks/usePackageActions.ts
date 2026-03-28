@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { openPath } from "@tauri-apps/plugin-opener";
@@ -6,7 +6,12 @@ import { toast } from "sonner";
 import { type Package, type Settings } from "../types/domain";
 import { buildReceiveLink } from "../lib/ticketLink";
 
-type PackageCreateResponse = {
+type PackagePrepareStartResponse = {
+  prepareSessionId: string;
+  packageId: string;
+};
+
+type PackagePrepareFinalizeResponse = {
   sessionId: string;
   packageId: string;
   ticket: string;
@@ -15,6 +20,10 @@ type PackageCreateResponse = {
 type PackageDownloadResponse = {
   sessionId: string;
   packageId: string;
+};
+
+type CancelResponse = {
+  ok: boolean;
 };
 
 type Args = {
@@ -27,6 +36,8 @@ type Args = {
     ticket: string;
   }) => void;
   attachReceiveSession: (payload: { packageId: string; sessionId: string }) => void;
+  startPackagePrepare: (payload: { packageId: string; prepareSessionId: string }) => void;
+  markPreparingFileCancelled: (payload: { packageId: string; fileId: string }) => void;
   markCancelledBySession: (sessionId: string) => void;
 };
 
@@ -35,11 +46,14 @@ export function usePackageActions({
   settings,
   attachTicketToPackage,
   attachReceiveSession,
+  startPackagePrepare,
+  markPreparingFileCancelled,
   markCancelledBySession,
 }: Args) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [isGeneratingTicket, setIsGeneratingTicket] = useState(false);
+  const [isFinalizingTicket, setIsFinalizingTicket] = useState(false);
+  const finalizingRef = useRef(false);
 
   const copyTicket = useCallback(
     async (overrideTicket?: string) => {
@@ -72,30 +86,83 @@ export function usePackageActions({
       return;
     }
 
-    setIsGeneratingTicket(true);
     setBusy(true);
     setError(null);
 
     try {
-      const response = await invoke<PackageCreateResponse>("package_create", {
+      const response = await invoke<PackagePrepareStartResponse>("package_prepare_start", {
         files: packageData.sourcePaths,
         roots: packageData.selectedRoots ?? [],
       });
-
-      attachTicketToPackage({
+      startPackagePrepare({
         packageId: packageData.id,
-        sessionId: response.sessionId,
-        backendPackageId: response.packageId,
-        ticket: response.ticket,
+        prepareSessionId: response.prepareSessionId,
       });
-      await copyTicket(response.ticket);
     } catch (cause) {
       setError(String(cause));
     } finally {
       setBusy(false);
-      setIsGeneratingTicket(false);
     }
-  }, [attachTicketToPackage, copyTicket, packageData.id, packageData.selectedRoots, packageData.sourcePaths]);
+  }, [packageData.id, packageData.selectedRoots, packageData.sourcePaths, startPackagePrepare]);
+
+  useEffect(() => {
+    if (
+      packageData.mode !== "send" ||
+      packageData.prepareStatus !== "completed" ||
+      !packageData.prepareSessionId ||
+      packageData.ticket ||
+      finalizingRef.current
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    finalizingRef.current = true;
+    setIsFinalizingTicket(true);
+    setBusy(true);
+    setError(null);
+
+    void invoke<PackagePrepareFinalizeResponse>("package_prepare_finalize", {
+      prepareSessionId: packageData.prepareSessionId,
+    })
+      .then(async (response) => {
+        if (cancelled) {
+          return;
+        }
+
+        attachTicketToPackage({
+          packageId: packageData.id,
+          sessionId: response.sessionId,
+          backendPackageId: response.packageId,
+          ticket: response.ticket,
+        });
+        await copyTicket(response.ticket);
+      })
+      .catch((cause) => {
+        if (!cancelled) {
+          setError(String(cause));
+        }
+      })
+      .finally(() => {
+        finalizingRef.current = false;
+        if (!cancelled) {
+          setBusy(false);
+          setIsFinalizingTicket(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    attachTicketToPackage,
+    copyTicket,
+    packageData.id,
+    packageData.mode,
+    packageData.prepareSessionId,
+    packageData.prepareStatus,
+    packageData.ticket,
+  ]);
 
   const startDownload = useCallback(async () => {
     if (!packageData.ticket) {
@@ -143,6 +210,27 @@ export function usePackageActions({
     }
   }, [markCancelledBySession, packageData.sessionId]);
 
+  const removePreparingFile = useCallback(
+    async (fileId: string, prepareBackendFileId?: string) => {
+      if (!packageData.prepareSessionId || !prepareBackendFileId) {
+        return;
+      }
+      try {
+        markPreparingFileCancelled({ packageId: packageData.id, fileId });
+        const response = await invoke<CancelResponse>("package_prepare_remove_file", {
+          prepareSessionId: packageData.prepareSessionId,
+          fileId: prepareBackendFileId,
+        });
+        if (!response.ok) {
+          setError("Could not remove file from active preparation session.");
+        }
+      } catch (cause) {
+        setError(String(cause));
+      }
+    },
+    [markPreparingFileCancelled, packageData.id, packageData.prepareSessionId],
+  );
+
   const openDownloadFolder = useCallback(async () => {
     const targetDir = packageData.downloadDir ?? settings.downloadDir;
     if (!targetDir) {
@@ -156,6 +244,13 @@ export function usePackageActions({
       setError(`Failed to open folder: ${String(cause)}`);
     }
   }, [packageData.downloadDir, settings.downloadDir]);
+
+  const isGeneratingTicket =
+    packageData.mode === "send" &&
+    !packageData.ticket &&
+    (packageData.prepareStatus === "preparing" ||
+      packageData.prepareStatus === "completed" ||
+      isFinalizingTicket);
 
   const maskedTicket = useMemo(
     () => (packageData.ticket ? `${buildReceiveLink(packageData.ticket).slice(0, 24)}...` : ""),
@@ -171,6 +266,7 @@ export function usePackageActions({
     isGeneratingTicket,
     maskedTicket,
     openDownloadFolder,
+    removePreparingFile,
     setError,
     startDownload,
   };

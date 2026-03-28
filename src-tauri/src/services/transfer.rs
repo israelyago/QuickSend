@@ -614,7 +614,7 @@ pub fn cleanup_iroh_node_dir(path: &Path) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::TransferRegistry;
+    use crate::state::{PrepareRegistry, TransferRegistry};
     use std::{
         collections::HashMap,
         sync::{Arc, Mutex},
@@ -625,6 +625,10 @@ mod tests {
         let hash_to_session = Arc::new(Mutex::new(HashMap::new()));
         let downloads = Arc::new(Mutex::new(HashMap::new()));
         TransferRegistry::new(sessions, hash_to_session, downloads)
+    }
+
+    fn make_prepare_registry() -> PrepareRegistry {
+        PrepareRegistry::new(Arc::new(Mutex::new(HashMap::new())))
     }
 
     #[tokio::test]
@@ -654,6 +658,7 @@ mod tests {
         let state = IrohAppState {
             node: tokio::sync::Mutex::new(None),
             registry: registry.clone(),
+            prepare_registry: make_prepare_registry(),
             node_dir: std::env::temp_dir().join("quicksend-transfer-cancel-test"),
         };
 
@@ -695,6 +700,7 @@ mod tests {
         let state = IrohAppState {
             node: tokio::sync::Mutex::new(None),
             registry: registry.clone(),
+            prepare_registry: make_prepare_registry(),
             node_dir: std::env::temp_dir().join("quicksend-transfer-race-test"),
         };
 

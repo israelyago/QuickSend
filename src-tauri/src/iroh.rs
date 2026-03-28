@@ -3,6 +3,7 @@ use std::path::{Component, Path, PathBuf};
 use anyhow::{anyhow, Context, Result};
 use iroh::{protocol::Router, Endpoint};
 use iroh_blobs::{
+    api::blobs::AddProgressItem,
     api::remote::GetProgressItem,
     format::collection::Collection,
     get::request,
@@ -33,6 +34,12 @@ pub struct CreatedTicket {
 pub struct SourceFile {
     pub path: PathBuf,
     pub name: String,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ImportPhase {
+    Importing,
+    Verifying,
 }
 
 pub struct PreviewFile {
@@ -144,6 +151,117 @@ impl IrohNode {
 
             served_hashes.push(tag.hash.to_string());
             collection.push(file_name, tag.hash);
+        }
+
+        let root = collection
+            .store(&self.store)
+            .await
+            .context("failed to store collection metadata")?;
+
+        self.store
+            .tags()
+            .create(root.hash_and_format())
+            .await
+            .context("failed to pin collection root in tag store")?;
+
+        let root_hash = root.hash().to_string();
+        served_hashes.push(root_hash.clone());
+        let ticket = BlobTicket::new(self.endpoint().addr(), root.hash(), BlobFormat::HashSeq);
+        Ok(CreatedTicket {
+            ticket: ticket.to_string(),
+            root_hash,
+            served_hashes,
+        })
+    }
+
+    pub async fn import_file_with_progress<F>(
+        &self,
+        file: &SourceFile,
+        mut on_progress: F,
+    ) -> Result<String>
+    where
+        F: FnMut(ImportPhase, u64, Option<u64>) -> bool,
+    {
+        let absolute = std::fs::canonicalize(&file.path)
+            .with_context(|| format!("failed to canonicalize {}", file.path.display()))?;
+        if !absolute.is_file() {
+            return Err(anyhow!("path is not a file: {}", absolute.display()));
+        }
+
+        let mut stream = self.store.blobs().add_path(&absolute).stream().await;
+        let mut total_bytes: Option<u64> = None;
+        let mut processed_bytes: u64 = 0;
+
+        while let Some(item) = stream.next().await {
+            match item {
+                AddProgressItem::Size(size) => {
+                    total_bytes = Some(size);
+                }
+                AddProgressItem::CopyProgress(offset) => {
+                    processed_bytes = offset;
+                    if !on_progress(ImportPhase::Importing, processed_bytes, total_bytes) {
+                        return Err(anyhow!("prepare import cancelled"));
+                    }
+                    continue;
+                }
+                AddProgressItem::OutboardProgress(offset) => {
+                    processed_bytes = offset;
+                    if !on_progress(ImportPhase::Verifying, processed_bytes, total_bytes) {
+                        return Err(anyhow!("prepare import cancelled"));
+                    }
+                    continue;
+                }
+                AddProgressItem::CopyDone => {
+                    if let Some(total) = total_bytes {
+                        processed_bytes = total;
+                    }
+                    if !on_progress(ImportPhase::Importing, processed_bytes, total_bytes) {
+                        return Err(anyhow!("prepare import cancelled"));
+                    }
+                    continue;
+                }
+                AddProgressItem::Done(temp_tag) => {
+                    let hash = temp_tag.hash().to_string();
+                    self.store
+                        .tags()
+                        .create(temp_tag.hash_and_format())
+                        .await
+                        .context("failed to create permanent tag for imported file")?;
+                    if let Some(total) = total_bytes {
+                        processed_bytes = total;
+                    }
+                    if !on_progress(ImportPhase::Verifying, processed_bytes, total_bytes) {
+                        return Err(anyhow!("prepare import cancelled"));
+                    }
+                    return Ok(hash);
+                }
+                AddProgressItem::Error(err) => {
+                    return Err(anyhow!(err).context("failed importing file into blob store"));
+                }
+            }
+
+        }
+
+        Err(anyhow!("unexpected end of import progress stream"))
+    }
+
+    pub async fn create_collection_ticket_from_hashes(
+        &self,
+        files: &[(String, String)],
+    ) -> Result<CreatedTicket> {
+        if files.is_empty() {
+            return Err(anyhow!("at least one file is required"));
+        }
+
+        let mut collection = Collection::default();
+        let mut served_hashes = Vec::new();
+
+        for (name, hash) in files {
+            let parsed_hash = hash
+                .parse()
+                .with_context(|| format!("invalid blob hash for {name}: {hash}"))?;
+            collection.push(name.clone(), parsed_hash);
+            served_hashes.push(hash.clone());
         }
 
         let root = collection

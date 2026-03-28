@@ -3,10 +3,11 @@ use tauri_plugin_clipboard_manager::Clipboard;
 
 use crate::{
     api::dto::{
-        LocalFileInfo, PackageCreateResponse, PackageDownloadResponse, PackagePreviewResponse,
+        CancelResponse, LocalFileInfo, PackageCreateResponse, PackageDownloadResponse,
+        PackagePrepareFinalizeResponse, PackagePrepareStartResponse, PackagePreviewResponse,
         PersistedSettings,
     },
-    services::{settings, transfer},
+    services::{prepare, settings, transfer},
     state::IrohAppState,
     utils::{files::expand_input_paths, mime::infer_mime_type},
 };
@@ -54,6 +55,41 @@ pub async fn package_create(
     state: State<'_, IrohAppState>,
 ) -> Result<PackageCreateResponse, String> {
     transfer::package_create(files, roots, app, &state).await
+}
+
+#[tauri::command]
+pub async fn package_prepare_start(
+    files: Vec<String>,
+    roots: Option<Vec<String>>,
+    app: tauri::AppHandle,
+    state: State<'_, IrohAppState>,
+) -> Result<PackagePrepareStartResponse, String> {
+    prepare::package_prepare_start(files, roots, app, &state).await
+}
+
+#[tauri::command]
+pub async fn package_prepare_finalize(
+    prepare_session_id: String,
+    state: State<'_, IrohAppState>,
+) -> Result<PackagePrepareFinalizeResponse, String> {
+    prepare::package_prepare_finalize(prepare_session_id, &state).await
+}
+
+#[tauri::command]
+pub fn package_prepare_cancel(
+    prepare_session_id: String,
+    state: State<'_, IrohAppState>,
+) -> Result<CancelResponse, String> {
+    prepare::package_prepare_cancel(prepare_session_id, &state)
+}
+
+#[tauri::command]
+pub fn package_prepare_remove_file(
+    prepare_session_id: String,
+    file_id: String,
+    state: State<'_, IrohAppState>,
+) -> Result<CancelResponse, String> {
+    prepare::package_prepare_remove_file(prepare_session_id, file_id, &state)
 }
 
 #[tauri::command]

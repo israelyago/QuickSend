@@ -28,6 +28,32 @@ type TransferErrorEvent = {
   message: string;
 };
 
+type SendPrepareProgressEvent = {
+  prepareSessionId: string;
+  packageId: string;
+  status: "queued" | "running" | "completed" | "failed" | "cancelled";
+  summary: {
+    totalFiles: number;
+    completedFiles: number;
+    failedFiles: number;
+    cancelledFiles: number;
+    processedBytes: number;
+    totalBytes: number;
+  };
+  files: Array<{
+    fileId: string;
+    name: string;
+    path: string;
+    status: "queued" | "importing" | "verifying" | "completed" | "failed" | "cancelled";
+    processedBytes: number;
+    totalBytes: number;
+    error?: string;
+  }>;
+  sequence: number;
+  done: boolean;
+  changedFileIds: string[];
+};
+
 type AppState = {
   packages: Package[];
   settings: Settings;
@@ -68,9 +94,18 @@ type AppState = {
     packageId: string;
     sessionId: string;
   }) => void;
+  startPackagePrepare: (input: {
+    packageId: string;
+    prepareSessionId: string;
+  }) => void;
   removeFileFromPackage: (input: { packageId: string; fileId: string }) => void;
   removeFilesFromPackage: (input: { packageId: string; fileIds: string[] }) => void;
+  markPreparingFileCancelled: (input: { packageId: string; fileId: string }) => void;
   markCancelledBySession: (sessionId: string) => void;
+  applySendPrepareProgressEvent: (event: SendPrepareProgressEvent) => void;
+  markSendPrepareCompleted: (prepareSessionId: string) => void;
+  markSendPrepareFailed: (prepareSessionId: string) => void;
+  markSendPrepareCancelled: (prepareSessionId: string) => void;
   applyPeerConnectedEvent: (event: TransferPeerConnectedEvent) => void;
   applyProgressEvent: (event: TransferProgressEvent) => void;
   applyCompletedEvent: (event: TransferCompletedEvent) => void;
@@ -135,6 +170,7 @@ export const useAppStore = create<AppState>((set) => ({
           totalSizeBytes,
           transferredBytes: 0,
           status: "idle",
+          prepareStatus: "idle",
           createdAtIso: nowIso(),
         },
         ...state.packages,
@@ -239,6 +275,8 @@ export const useAppStore = create<AppState>((set) => ({
               ticket,
               status: "waiting_peer",
               transferredBytes: 0,
+              prepareStatus: "completed",
+              prepareProgress: undefined,
             }
           : pkg,
       ),
@@ -265,6 +303,34 @@ export const useAppStore = create<AppState>((set) => ({
                 transferredBytes: pkg.status === "cancelled" ? 0 : (pkg.transferredBytes ?? 0),
               };
             })()
+          : pkg,
+      ),
+    }));
+  },
+  startPackagePrepare: ({ packageId, prepareSessionId }) => {
+    set((state) => ({
+      packages: state.packages.map((pkg) =>
+        pkg.id === packageId
+          ? {
+              ...pkg,
+              status: "preparing",
+              prepareStatus: "preparing",
+              prepareSessionId,
+              prepareProgress: {
+                completedFiles: 0,
+                failedFiles: 0,
+                cancelledFiles: 0,
+                totalFiles: pkg.files.length,
+                processedBytes: 0,
+                totalBytes: pkg.totalSizeBytes,
+              },
+              files: pkg.files.map((file) => ({
+                ...file,
+                prepareStatus: "queued",
+                prepareProcessedBytes: 0,
+                prepareError: undefined,
+              })),
+            }
           : pkg,
       ),
     }));
@@ -321,6 +387,27 @@ export const useAppStore = create<AppState>((set) => ({
       }),
     }));
   },
+  markPreparingFileCancelled: ({ packageId, fileId }) => {
+    set((state) => ({
+      packages: state.packages.map((pkg) => {
+        if (pkg.id !== packageId) {
+          return pkg;
+        }
+        return {
+          ...pkg,
+          files: pkg.files.map((file) =>
+            file.id === fileId
+              ? {
+                  ...file,
+                  prepareStatus: "cancelled",
+                  prepareError: undefined,
+                }
+              : file,
+          ),
+        };
+      }),
+    }));
+  },
   markCancelledBySession: (sessionId) => {
     set((state) => ({
       packages: state.packages.map((pkg) =>
@@ -328,6 +415,97 @@ export const useAppStore = create<AppState>((set) => ({
           ? {
               ...pkg,
               status: "cancelled",
+            }
+          : pkg,
+      ),
+    }));
+  },
+  applySendPrepareProgressEvent: (event) => {
+    set((state) => ({
+      packages: state.packages.map((pkg) => {
+        if (pkg.mode !== "send" || pkg.prepareSessionId !== event.prepareSessionId) {
+          return pkg;
+        }
+
+        const files = pkg.files.map((file) => {
+          const match = event.files.find(
+            (progressFile) =>
+              (file.sourcePath && progressFile.path === file.sourcePath) ||
+              progressFile.name === file.name,
+          );
+          if (!match) {
+            return file;
+          }
+          return {
+            ...file,
+            prepareBackendFileId: match.fileId,
+            prepareStatus: match.status,
+            prepareProcessedBytes: match.processedBytes,
+            prepareError: match.error,
+          };
+        });
+
+        const mappedStatus: Package["status"] =
+          event.status === "failed"
+            ? "failed"
+            : event.status === "cancelled"
+              ? "cancelled"
+              : "preparing";
+
+        return {
+          ...pkg,
+          files,
+          status: pkg.ticket ? pkg.status : mappedStatus,
+          prepareStatus:
+            event.status === "queued" || event.status === "running"
+              ? "preparing"
+              : event.status,
+          prepareProgress: {
+            completedFiles: event.summary.completedFiles,
+            failedFiles: event.summary.failedFiles,
+            cancelledFiles: event.summary.cancelledFiles,
+            totalFiles: event.summary.totalFiles,
+            processedBytes: event.summary.processedBytes,
+            totalBytes: event.summary.totalBytes,
+          },
+        };
+      }),
+    }));
+  },
+  markSendPrepareCompleted: (prepareSessionId) => {
+    set((state) => ({
+      packages: state.packages.map((pkg) =>
+        pkg.prepareSessionId === prepareSessionId
+          ? {
+              ...pkg,
+              status: pkg.ticket ? pkg.status : "preparing",
+              prepareStatus: "completed",
+            }
+          : pkg,
+      ),
+    }));
+  },
+  markSendPrepareFailed: (prepareSessionId) => {
+    set((state) => ({
+      packages: state.packages.map((pkg) =>
+        pkg.prepareSessionId === prepareSessionId
+          ? {
+              ...pkg,
+              status: "failed",
+              prepareStatus: "failed",
+            }
+          : pkg,
+      ),
+    }));
+  },
+  markSendPrepareCancelled: (prepareSessionId) => {
+    set((state) => ({
+      packages: state.packages.map((pkg) =>
+        pkg.prepareSessionId === prepareSessionId
+          ? {
+              ...pkg,
+              status: "cancelled",
+              prepareStatus: "cancelled",
             }
           : pkg,
       ),
