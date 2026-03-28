@@ -9,14 +9,6 @@ pub struct LocalFileInfo {
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct PackageCreateResponse {
-    pub session_id: String,
-    pub package_id: String,
-    pub ticket: String,
-}
-
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct PackagePreviewResponse {
     pub package_id: String,
     pub files: Vec<LocalFileInfo>,
@@ -33,6 +25,14 @@ pub struct PackageDownloadResponse {
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PackagePrepareStartResponse {
+    pub prepare_session_id: String,
+    pub package_id: String,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PackagePrepareAddFilesResponse {
+    pub ok: bool,
     pub prepare_session_id: String,
     pub package_id: String,
 }

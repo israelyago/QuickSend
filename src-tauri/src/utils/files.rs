@@ -58,14 +58,6 @@ pub fn collect_dir_files(dir: &Path, files: &mut Vec<PathBuf>) -> Result<(), Str
     Ok(())
 }
 
-pub fn sum_file_sizes(files: &[PathBuf]) -> Result<u64, String> {
-    files.iter().try_fold(0_u64, |acc, path| {
-        let metadata = std::fs::metadata(path)
-            .map_err(|err| format!("failed to stat {}: {err}", path.display()))?;
-        Ok(acc.saturating_add(metadata.len()))
-    })
-}
-
 pub fn build_source_files(
     files: Vec<String>,
     roots: Option<Vec<String>>,
@@ -140,7 +132,7 @@ pub fn find_relative_name(path: &Path, roots: &[PathBuf]) -> Result<Option<Strin
 
 #[cfg(test)]
 mod tests {
-    use super::{build_source_files, find_relative_name, sum_file_sizes};
+    use super::{build_source_files, find_relative_name};
 
     use std::{
         fs,
@@ -187,17 +179,4 @@ mod tests {
         let _ = fs::remove_dir_all(base);
     }
 
-    #[test]
-    fn sum_file_sizes_adds_file_lengths() {
-        let base = unique_temp_dir("sum");
-        let a = base.join("a.txt");
-        let b = base.join("b.txt");
-        fs::write(&a, b"12345").expect("write a");
-        fs::write(&b, b"123").expect("write b");
-
-        let total = sum_file_sizes(&[a, b]).expect("sum file sizes");
-        assert_eq!(total, 8);
-
-        let _ = fs::remove_dir_all(base);
-    }
 }

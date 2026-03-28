@@ -22,7 +22,6 @@ export function PackagePage() {
   const attachTicketToPackage = useAppStore((state) => state.attachTicketToPackage);
   const attachReceiveSession = useAppStore((state) => state.attachReceiveSession);
   const startPackagePrepare = useAppStore((state) => state.startPackagePrepare);
-  const markPreparingFileCancelled = useAppStore((state) => state.markPreparingFileCancelled);
   const markCancelledBySession = useAppStore((state) => state.markCancelledBySession);
   const removeFileFromPackage = useAppStore((state) => state.removeFileFromPackage);
   const removeFilesFromPackage = useAppStore((state) => state.removeFilesFromPackage);
@@ -65,7 +64,7 @@ export function PackagePage() {
     attachTicketToPackage,
     attachReceiveSession,
     startPackagePrepare,
-    markPreparingFileCancelled,
+    removeFileFromPackage,
     markCancelledBySession,
   });
   const canEditFiles =

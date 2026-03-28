@@ -26,7 +26,11 @@ type Props = {
   setActiveMenuRect: (rect: DOMRect | null) => void;
   removeFileFromPackage: (payload: { packageId: string; fileId: string }) => void;
   removeFilesFromPackage: (payload: { packageId: string; fileIds: string[] }) => void;
-  removePreparingFile: (fileId: string, prepareBackendFileId?: string) => void;
+  removePreparingFile: (
+    fileId: string,
+    prepareBackendFileId?: string,
+    sourcePath?: string,
+  ) => void;
   formatBytes: (value: number, standard: "jedec" | "iec") => string;
   formatDuration: (seconds: number) => string;
 };

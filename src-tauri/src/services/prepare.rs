@@ -7,8 +7,8 @@ use tauri::{AppHandle, Emitter};
 
 use crate::{
     api::dto::{
-        CancelResponse, PackagePrepareFinalizeResponse, PackagePrepareStartResponse,
-        PrepareFileProgress, PrepareFileStatusDto, PrepareProgressSummary,
+        CancelResponse, PackagePrepareAddFilesResponse, PackagePrepareFinalizeResponse,
+        PackagePrepareStartResponse, PrepareFileProgress, PrepareFileStatusDto, PrepareProgressSummary,
         PrepareSessionStatusDto, SendPrepareProgressEvent,
     },
     iroh::{ImportPhase, SourceFile},
@@ -108,7 +108,7 @@ pub async fn package_prepare_start(
     let file_states = source_files
         .iter()
         .enumerate()
-        .map(|(idx, file)| build_initial_file_state(idx, file))
+        .map(|(idx, file)| build_initial_file_state(format!("f{idx}"), file))
         .collect::<Vec<_>>();
 
     state.prepare_registry.insert_session(
@@ -116,35 +116,89 @@ pub async fn package_prepare_start(
         PrepareSessionMeta::with_files(package_id.clone(), file_states),
     )?;
 
-    let worker_session_id = prepare_session_id.clone();
-    let worker_package_id = package_id.clone();
-    let registry = state.prepare_registry.clone();
-    let app_handle = app.clone();
-    let node = {
-        let guard = state.node.lock().await;
-        guard
-            .as_ref()
-            .cloned()
-            .ok_or_else(|| "iroh node not initialized".to_string())?
-    };
-
-    let task = tauri::async_runtime::spawn(async move {
-        run_prepare_worker(
-            app_handle,
-            registry,
-            node,
-            worker_session_id,
-            worker_package_id,
-            source_files,
-        )
-        .await;
-    });
-
-    state
-        .prepare_registry
-        .register_task(prepare_session_id.clone(), task)?;
+    ensure_prepare_worker_for_files(
+        app,
+        state,
+        prepare_session_id.clone(),
+        package_id.clone(),
+        source_files
+            .into_iter()
+            .enumerate()
+            .map(|(idx, file)| (format!("f{idx}"), file))
+            .collect(),
+    )
+    .await?;
 
     Ok(PackagePrepareStartResponse {
+        prepare_session_id,
+        package_id,
+    })
+}
+
+pub async fn package_prepare_add_files(
+    prepare_session_id: String,
+    files: Vec<String>,
+    roots: Option<Vec<String>>,
+    app: AppHandle,
+    state: &IrohAppState,
+) -> Result<PackagePrepareAddFilesResponse, String> {
+    let source_files = build_source_files(files, roots)?;
+    if source_files.is_empty() {
+        return Err("at least one file is required".to_string());
+    }
+
+    let session = state
+        .prepare_registry
+        .get_session(&prepare_session_id)
+        .ok_or_else(|| format!("prepare session not found: {prepare_session_id}"))?;
+    let package_id = session.package_id.clone();
+
+    let mut accepted: Vec<(String, SourceFile)> = Vec::new();
+    let _ = state
+        .prepare_registry
+        .update_session(&prepare_session_id, |session| {
+            for file in source_files {
+                let path = file.path.display().to_string();
+                let already_known = session
+                    .files
+                    .iter()
+                    .any(|existing| existing.path == path && existing.status != PrepareFileLifecycleState::Cancelled);
+                if already_known {
+                    continue;
+                }
+
+                let file_id = format!("f{}", session.next_file_seq);
+                session.next_file_seq = session.next_file_seq.saturating_add(1);
+                session
+                    .files
+                    .push(build_initial_file_state(file_id.clone(), &file));
+                accepted.push((file_id, file));
+            }
+        })?;
+
+    if accepted.is_empty() {
+        return Ok(PackagePrepareAddFilesResponse {
+            ok: true,
+            prepare_session_id,
+            package_id,
+        });
+    }
+
+    let _ = state
+        .prepare_registry
+        .transition_state(&prepare_session_id, PrepareLifecycleState::Running);
+
+    ensure_prepare_worker_for_files(
+        app,
+        state,
+        prepare_session_id.clone(),
+        package_id.clone(),
+        accepted,
+    )
+    .await?;
+
+    Ok(PackagePrepareAddFilesResponse {
+        ok: true,
         prepare_session_id,
         package_id,
     })
@@ -179,6 +233,11 @@ pub async fn package_prepare_finalize(
     {
         return Err(format!(
             "prepare session {prepare_session_id} is not ready to finalize"
+        ));
+    }
+    if state.prepare_registry.has_task(&prepare_session_id) {
+        return Err(format!(
+            "prepare session {prepare_session_id} is still importing files"
         ));
     }
 
@@ -240,13 +299,95 @@ pub fn package_prepare_cancel(
 
 pub fn package_prepare_remove_file(
     prepare_session_id: String,
-    file_id: String,
+    file_id: Option<String>,
+    file_path: Option<String>,
     state: &IrohAppState,
 ) -> Result<CancelResponse, String> {
+    let resolved_file_id = if let Some(file_id) = file_id {
+        Some(file_id)
+    } else if let Some(file_path) = file_path {
+        state
+            .prepare_registry
+            .get_session(&prepare_session_id)
+            .and_then(|session| {
+                session
+                    .files
+                    .into_iter()
+                    .find(|file| file.path == file_path)
+                    .map(|file| file.file_id)
+            })
+    } else {
+        None
+    };
+
+    let Some(file_id) = resolved_file_id else {
+        return Ok(CancelResponse { ok: false });
+    };
+
     let ok = state
         .prepare_registry
         .request_remove_file(&prepare_session_id, &file_id)?;
+    if ok {
+        let _ = state
+            .prepare_registry
+            .update_session(&prepare_session_id, |session| {
+                if let Some(file) = session.files.iter_mut().find(|file| file.file_id == file_id) {
+                    if let Some(hash) = file.hash.take() {
+                        session
+                            .imported_hashes
+                            .retain(|(name, value)| !(name == &file.name && value == &hash));
+                    }
+                    file.status = PrepareFileLifecycleState::Cancelled;
+                    file.error = None;
+                }
+            });
+    }
     Ok(CancelResponse { ok })
+}
+
+pub fn package_prepare_status(
+    prepare_session_id: String,
+    state: &IrohAppState,
+) -> Result<SendPrepareProgressEvent, String> {
+    build_prepare_snapshot(&state.prepare_registry, &prepare_session_id)
+}
+
+async fn ensure_prepare_worker_for_files(
+    app: AppHandle,
+    state: &IrohAppState,
+    prepare_session_id: String,
+    package_id: String,
+    files: Vec<(String, SourceFile)>,
+) -> Result<(), String> {
+    if files.is_empty() {
+        return Ok(());
+    }
+
+    let node = {
+        let guard = state.node.lock().await;
+        guard
+            .as_ref()
+            .cloned()
+            .ok_or_else(|| "iroh node not initialized".to_string())?
+    };
+
+    let registry = state.prepare_registry.clone();
+    let app_handle = app.clone();
+    let worker_session_id = prepare_session_id.clone();
+    let worker_package_id = package_id.clone();
+    let task = tauri::async_runtime::spawn(async move {
+        run_prepare_worker(
+            app_handle,
+            registry,
+            node,
+            worker_session_id,
+            worker_package_id,
+            files,
+        )
+        .await;
+    });
+    state.prepare_registry.register_task(prepare_session_id, task)?;
+    Ok(())
 }
 
 async fn run_prepare_worker(
@@ -255,7 +396,7 @@ async fn run_prepare_worker(
     node: std::sync::Arc<crate::iroh::IrohNode>,
     prepare_session_id: String,
     package_id: String,
-    source_files: Vec<SourceFile>,
+    source_files: Vec<(String, SourceFile)>,
 ) {
     let (progress_tx, mut progress_rx) = tokio::sync::mpsc::unbounded_channel::<
         PrepareFileProgressUpdate,
@@ -266,8 +407,7 @@ async fn run_prepare_worker(
     let importer_registry = registry.clone();
     let importer_session_id = prepare_session_id.clone();
     let mut importer = tauri::async_runtime::spawn(async move {
-        for (idx, file) in source_files.into_iter().enumerate() {
-            let file_id = format!("f{idx}");
+        for (file_id, file) in source_files {
 
             if importer_registry.is_cancel_requested(&importer_session_id)
                 || importer_registry
@@ -451,6 +591,7 @@ async fn run_prepare_worker(
         batcher.push_update(update);
     }
 
+    registry.retire_task(&prepare_session_id);
     let session = registry.get_session(&prepare_session_id);
     let Some(session) = session else {
         return;
@@ -471,6 +612,29 @@ async fn run_prepare_worker(
         .iter()
         .filter(|file| file.status == PrepareFileLifecycleState::Cancelled)
         .count();
+
+    let all_terminal = session.files.iter().all(|file| {
+        matches!(
+            file.status,
+            PrepareFileLifecycleState::Completed
+                | PrepareFileLifecycleState::Failed
+                | PrepareFileLifecycleState::Cancelled
+        )
+    });
+    if !all_terminal {
+        if batcher.has_pending() {
+            let batch = batcher.flush();
+            let _ = emit_prepare_progress_event(
+                &app,
+                &registry,
+                &prepare_session_id,
+                &package_id,
+                batch,
+                false,
+            );
+        }
+        return;
+    }
 
     let terminal = if registry.is_cancel_requested(&prepare_session_id) {
         PrepareLifecycleState::Cancelled
@@ -535,12 +699,12 @@ async fn run_prepare_worker(
     }
 }
 
-fn build_initial_file_state(index: usize, file: &SourceFile) -> PrepareFileState {
+fn build_initial_file_state(file_id: String, file: &SourceFile) -> PrepareFileState {
     let total_bytes = std::fs::metadata(&file.path)
         .map(|meta| meta.len())
         .unwrap_or(0);
     PrepareFileState {
-        file_id: format!("f{index}"),
+        file_id,
         name: file.name.clone(),
         path: file.path.display().to_string(),
         status: PrepareFileLifecycleState::Queued,
@@ -660,6 +824,74 @@ fn emit_prepare_progress_event(
 
     app.emit(SEND_PREPARE_PROGRESS_EVENT, payload)
         .map_err(|err| err.to_string())
+}
+
+fn build_prepare_snapshot(
+    registry: &crate::state::PrepareRegistry,
+    prepare_session_id: &str,
+) -> Result<SendPrepareProgressEvent, String> {
+    let session = registry
+        .get_session(prepare_session_id)
+        .ok_or_else(|| format!("prepare session not found: {prepare_session_id}"))?;
+    let status = registry
+        .get_lifecycle_state(prepare_session_id)
+        .ok_or_else(|| format!("prepare session lifecycle not found: {prepare_session_id}"))?;
+
+    let completed_files = session
+        .files
+        .iter()
+        .filter(|file| file.status == PrepareFileLifecycleState::Completed)
+        .count() as u64;
+    let failed_files = session
+        .files
+        .iter()
+        .filter(|file| file.status == PrepareFileLifecycleState::Failed)
+        .count() as u64;
+    let cancelled_files = session
+        .files
+        .iter()
+        .filter(|file| file.status == PrepareFileLifecycleState::Cancelled)
+        .count() as u64;
+    let total_files = session.files.len() as u64;
+    let processed_bytes = session
+        .files
+        .iter()
+        .map(|file| file.processed_bytes)
+        .sum::<u64>();
+    let total_bytes = session.files.iter().map(|file| file.total_bytes).sum::<u64>();
+    let files = session
+        .files
+        .iter()
+        .cloned()
+        .map(file_state_to_progress)
+        .collect::<Vec<_>>();
+    let changed_file_ids = session
+        .files
+        .iter()
+        .map(|file| file.file_id.clone())
+        .collect::<Vec<_>>();
+    let done = matches!(
+        status,
+        PrepareLifecycleState::Completed | PrepareLifecycleState::Failed | PrepareLifecycleState::Cancelled
+    );
+
+    Ok(SendPrepareProgressEvent {
+        prepare_session_id: prepare_session_id.to_string(),
+        package_id: session.package_id,
+        status: lifecycle_to_dto(status),
+        summary: PrepareProgressSummary {
+            total_files,
+            completed_files,
+            failed_files,
+            cancelled_files,
+            processed_bytes,
+            total_bytes,
+        },
+        files,
+        sequence: session.emit_sequence,
+        done,
+        changed_file_ids,
+    })
 }
 
 #[cfg(test)]

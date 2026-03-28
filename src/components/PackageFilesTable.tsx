@@ -21,7 +21,11 @@ type Props = {
   setActiveMenuRect: (rect: DOMRect | null) => void;
   removeFileFromPackage: (payload: { packageId: string; fileId: string }) => void;
   removeFilesFromPackage: (payload: { packageId: string; fileIds: string[] }) => void;
-  removePreparingFile: (fileId: string, prepareBackendFileId?: string) => void;
+  removePreparingFile: (
+    fileId: string,
+    prepareBackendFileId?: string,
+    sourcePath?: string,
+  ) => void;
 };
 
 export function PackageFilesTable({
@@ -170,9 +174,13 @@ export function PackageFilesTable({
               type="button"
               role="menuitem"
               onClick={() => {
-                if (canRemoveDuringPrepare && activeRow.kind === "file") {
-                  removePreparingFile(activeRow.file.id, activeRow.file.prepareBackendFileId);
-                } else if (activeRow.kind === "folder") {
+                  if (canRemoveDuringPrepare && activeRow.kind === "file") {
+                    removePreparingFile(
+                      activeRow.file.id,
+                      activeRow.file.prepareBackendFileId,
+                      activeRow.file.sourcePath,
+                    );
+                  } else if (activeRow.kind === "folder") {
                   removeFilesFromPackage({
                     packageId: packageData.id,
                     fileIds: activeRow.fileIds,

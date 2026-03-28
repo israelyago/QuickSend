@@ -129,6 +129,17 @@ function createId(prefix: string) {
   return `${prefix}-${Date.now()}-${random}`;
 }
 
+function buildPrepareProgressFromFiles(files: FileEntry[]) {
+  return {
+    completedFiles: files.filter((file) => file.prepareStatus === "completed").length,
+    failedFiles: files.filter((file) => file.prepareStatus === "failed").length,
+    cancelledFiles: files.filter((file) => file.prepareStatus === "cancelled").length,
+    totalFiles: files.length,
+    processedBytes: files.reduce((acc, file) => acc + (file.prepareProcessedBytes ?? 0), 0),
+    totalBytes: files.reduce((acc, file) => acc + file.sizeBytes, 0),
+  };
+}
+
 export const useAppStore = create<AppState>((set) => ({
   packages: [],
   settings: initialSettings,
@@ -260,6 +271,10 @@ export const useAppStore = create<AppState>((set) => ({
           totalSizeBytes,
           sourcePaths,
           selectedRoots: mergedRoots,
+          prepareProgress:
+            pkg.prepareStatus && pkg.prepareStatus !== "idle"
+              ? buildPrepareProgressFromFiles(nextFiles)
+              : pkg.prepareProgress,
         };
       }),
     }));
@@ -355,6 +370,10 @@ export const useAppStore = create<AppState>((set) => ({
           files,
           totalSizeBytes,
           sourcePaths,
+          prepareProgress:
+            pkg.prepareStatus && pkg.prepareStatus !== "idle"
+              ? buildPrepareProgressFromFiles(files)
+              : pkg.prepareProgress,
         };
       }),
     }));
@@ -383,6 +402,10 @@ export const useAppStore = create<AppState>((set) => ({
           files,
           totalSizeBytes,
           sourcePaths,
+          prepareProgress:
+            pkg.prepareStatus && pkg.prepareStatus !== "idle"
+              ? buildPrepareProgressFromFiles(files)
+              : pkg.prepareProgress,
         };
       }),
     }));
@@ -460,14 +483,7 @@ export const useAppStore = create<AppState>((set) => ({
             event.status === "queued" || event.status === "running"
               ? "preparing"
               : event.status,
-          prepareProgress: {
-            completedFiles: event.summary.completedFiles,
-            failedFiles: event.summary.failedFiles,
-            cancelledFiles: event.summary.cancelledFiles,
-            totalFiles: event.summary.totalFiles,
-            processedBytes: event.summary.processedBytes,
-            totalBytes: event.summary.totalBytes,
-          },
+          prepareProgress: buildPrepareProgressFromFiles(files),
         };
       }),
     }));
@@ -476,11 +492,30 @@ export const useAppStore = create<AppState>((set) => ({
     set((state) => ({
       packages: state.packages.map((pkg) =>
         pkg.prepareSessionId === prepareSessionId
-          ? {
-              ...pkg,
-              status: pkg.ticket ? pkg.status : "preparing",
-              prepareStatus: "completed",
-            }
+          ? (() => {
+              const files = pkg.files.map((file) => {
+                if (
+                  file.prepareStatus === "completed" ||
+                  file.prepareStatus === "failed" ||
+                  file.prepareStatus === "cancelled"
+                ) {
+                  return file;
+                }
+                return {
+                  ...file,
+                  prepareStatus: "completed" as const,
+                  prepareProcessedBytes: file.sizeBytes,
+                  prepareError: undefined,
+                };
+              });
+              return {
+                ...pkg,
+                files,
+                status: pkg.ticket ? pkg.status : "preparing",
+                prepareStatus: "completed",
+                prepareProgress: buildPrepareProgressFromFiles(files),
+              };
+            })()
           : pkg,
       ),
     }));

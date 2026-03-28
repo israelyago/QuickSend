@@ -6,13 +6,12 @@ use tokio::time::{sleep, Duration};
 
 use crate::{
     api::dto::{
-        CancelResponse, LocalFileInfo, PackageCreateResponse, PackageDownloadResponse,
-        PackagePreviewResponse, TransferCompletedEvent, TransferErrorEvent,
-        TransferPeerConnectedEvent, TransferProgressEvent,
+        CancelResponse, LocalFileInfo, PackageDownloadResponse, PackagePreviewResponse,
+        TransferCompletedEvent, TransferErrorEvent, TransferPeerConnectedEvent,
+        TransferProgressEvent,
     },
     state::{IrohAppState, SessionMeta, TransferLifecycleState},
     utils::{
-        files::{build_source_files, sum_file_sizes},
         ids::next_id,
         paths::{download_staging_dir, resolve_download_dir},
     },
@@ -34,57 +33,6 @@ struct DownloadTaskInput {
     total_bytes: u64,
     output_dir: PathBuf,
     registry: crate::state::TransferRegistry,
-}
-
-pub async fn package_create(
-    files: Vec<String>,
-    roots: Option<Vec<String>>,
-    app: tauri::AppHandle,
-    state: &IrohAppState,
-) -> Result<PackageCreateResponse, String> {
-    let source_files = build_source_files(files, roots)?;
-    let file_paths = source_files
-        .iter()
-        .map(|file| file.path.clone())
-        .collect::<Vec<PathBuf>>();
-    let total_bytes = sum_file_sizes(&file_paths)?;
-
-    let session_id = next_id("send-session");
-    let package_id = next_id("pkg");
-
-    let node = {
-        let guard = state.node.lock().await;
-        guard
-            .as_ref()
-            .cloned()
-            .ok_or_else(|| "iroh node not initialized".to_string())?
-    };
-    let created = node
-        .create_collection_ticket(&source_files)
-        .await
-        .map_err(|err| err.to_string())?;
-
-    state.registry.insert_session(
-        session_id.clone(),
-        SessionMeta {
-            package_id: package_id.clone(),
-            total_bytes,
-        },
-    )?;
-
-    for hash in created.served_hashes {
-        state
-            .registry
-            .map_hash_to_session(hash, session_id.clone())?;
-    }
-
-    emit_transfer_progress(&app, &session_id, &package_id, 0, total_bytes, None)?;
-
-    Ok(PackageCreateResponse {
-        session_id,
-        package_id,
-        ticket: created.ticket,
-    })
 }
 
 pub async fn package_preview(

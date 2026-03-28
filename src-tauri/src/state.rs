@@ -256,6 +256,7 @@ pub struct PrepareSessionMeta {
     pub files: Vec<PrepareFileState>,
     pub imported_hashes: Vec<(String, String)>,
     pub emit_sequence: u64,
+    pub next_file_seq: u64,
 }
 
 impl PrepareSessionMeta {
@@ -266,16 +267,19 @@ impl PrepareSessionMeta {
             files: Vec::new(),
             imported_hashes: Vec::new(),
             emit_sequence: 0,
+            next_file_seq: 0,
         }
     }
 
     pub fn with_files(package_id: String, files: Vec<PrepareFileState>) -> Self {
+        let next_file_seq = files.len() as u64;
         Self {
             package_id,
             started_at: SystemTime::now(),
             files,
             imported_hashes: Vec::new(),
             emit_sequence: 0,
+            next_file_seq,
         }
     }
 }
@@ -321,6 +325,8 @@ impl PrepareLifecycleState {
                 | (Self::Running, Self::Completed)
                 | (Self::Running, Self::Failed)
                 | (Self::Running, Self::Cancelled)
+                | (Self::Completed, Self::Running)
+                | (Self::Failed, Self::Running)
         )
     }
 
@@ -333,7 +339,7 @@ impl PrepareLifecycleState {
 pub struct PrepareRegistry {
     sessions: Arc<Mutex<HashMap<String, PrepareSessionMeta>>>,
     lifecycle: Arc<Mutex<HashMap<String, PrepareLifecycleState>>>,
-    tasks: Arc<Mutex<HashMap<String, tauri::async_runtime::JoinHandle<()>>>>,
+    tasks: Arc<Mutex<HashMap<String, Vec<tauri::async_runtime::JoinHandle<()>>>>>,
     cancel_requests: Arc<Mutex<HashSet<String>>>,
     remove_requests: Arc<Mutex<HashMap<String, HashSet<String>>>>,
 }
@@ -439,15 +445,36 @@ impl PrepareRegistry {
             .tasks
             .lock()
             .map_err(|_| "prepare tasks lock poisoned".to_string())?;
-        tasks.insert(session_id, task);
+        tasks.entry(session_id).or_default().push(task);
         Ok(())
     }
 
-    pub fn take_task(&self, session_id: &str) -> Option<tauri::async_runtime::JoinHandle<()>> {
+    pub fn take_task(&self, session_id: &str) -> Option<Vec<tauri::async_runtime::JoinHandle<()>>> {
         self.tasks
             .lock()
             .ok()
             .and_then(|mut map| map.remove(session_id))
+    }
+
+    pub fn retire_task(&self, session_id: &str) {
+        if let Ok(mut tasks) = self.tasks.lock() {
+            if let Some(handles) = tasks.get_mut(session_id) {
+                if !handles.is_empty() {
+                    let _ = handles.pop();
+                }
+                if handles.is_empty() {
+                    tasks.remove(session_id);
+                }
+            }
+        }
+    }
+
+    pub fn has_task(&self, session_id: &str) -> bool {
+        self.tasks
+            .lock()
+            .ok()
+            .map(|map| map.get(session_id).is_some_and(|handles| !handles.is_empty()))
+            .unwrap_or(false)
     }
 
     pub fn request_cancel(&self, session_id: &str) -> Result<bool, String> {
@@ -511,8 +538,10 @@ impl PrepareRegistry {
     }
 
     pub fn cleanup_session(&self, session_id: &str) {
-        if let Some(task) = self.take_task(session_id) {
-            task.abort();
+        if let Some(tasks) = self.take_task(session_id) {
+            for task in tasks {
+                task.abort();
+            }
         }
         let _ = self.remove_session(session_id);
         if let Ok(mut lifecycle) = self.lifecycle.lock() {
@@ -537,8 +566,10 @@ impl PrepareRegistry {
         }
 
         if let Ok(mut tasks) = self.tasks.lock() {
-            for (_, task) in tasks.drain() {
-                task.abort();
+            for (_, handles) in tasks.drain() {
+                for task in handles {
+                    task.abort();
+                }
             }
         }
 

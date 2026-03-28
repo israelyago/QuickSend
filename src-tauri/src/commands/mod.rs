@@ -3,9 +3,9 @@ use tauri_plugin_clipboard_manager::Clipboard;
 
 use crate::{
     api::dto::{
-        CancelResponse, LocalFileInfo, PackageCreateResponse, PackageDownloadResponse,
-        PackagePrepareFinalizeResponse, PackagePrepareStartResponse, PackagePreviewResponse,
-        PersistedSettings,
+        CancelResponse, LocalFileInfo, PackageDownloadResponse,
+        PackagePrepareAddFilesResponse, PackagePrepareFinalizeResponse, PackagePrepareStartResponse,
+        PackagePreviewResponse, PersistedSettings,
     },
     services::{prepare, settings, transfer},
     state::IrohAppState,
@@ -48,16 +48,6 @@ pub fn inspect_files(files: Vec<String>) -> Result<Vec<LocalFileInfo>, String> {
 }
 
 #[tauri::command]
-pub async fn package_create(
-    files: Vec<String>,
-    roots: Option<Vec<String>>,
-    app: tauri::AppHandle,
-    state: State<'_, IrohAppState>,
-) -> Result<PackageCreateResponse, String> {
-    transfer::package_create(files, roots, app, &state).await
-}
-
-#[tauri::command]
 pub async fn package_prepare_start(
     files: Vec<String>,
     roots: Option<Vec<String>>,
@@ -76,6 +66,17 @@ pub async fn package_prepare_finalize(
 }
 
 #[tauri::command]
+pub async fn package_prepare_add_files(
+    prepare_session_id: String,
+    files: Vec<String>,
+    roots: Option<Vec<String>>,
+    app: tauri::AppHandle,
+    state: State<'_, IrohAppState>,
+) -> Result<PackagePrepareAddFilesResponse, String> {
+    prepare::package_prepare_add_files(prepare_session_id, files, roots, app, &state).await
+}
+
+#[tauri::command]
 pub fn package_prepare_cancel(
     prepare_session_id: String,
     state: State<'_, IrohAppState>,
@@ -86,10 +87,19 @@ pub fn package_prepare_cancel(
 #[tauri::command]
 pub fn package_prepare_remove_file(
     prepare_session_id: String,
-    file_id: String,
+    file_id: Option<String>,
+    file_path: Option<String>,
     state: State<'_, IrohAppState>,
 ) -> Result<CancelResponse, String> {
-    prepare::package_prepare_remove_file(prepare_session_id, file_id, &state)
+    prepare::package_prepare_remove_file(prepare_session_id, file_id, file_path, &state)
+}
+
+#[tauri::command]
+pub fn package_prepare_status(
+    prepare_session_id: String,
+    state: State<'_, IrohAppState>,
+) -> Result<crate::api::dto::SendPrepareProgressEvent, String> {
+    prepare::package_prepare_status(prepare_session_id, &state)
 }
 
 #[tauri::command]

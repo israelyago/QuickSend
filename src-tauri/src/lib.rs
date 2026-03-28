@@ -42,9 +42,10 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::ping,
             commands::inspect_files,
-            commands::package_create,
             commands::package_prepare_start,
             commands::package_prepare_finalize,
+            commands::package_prepare_add_files,
+            commands::package_prepare_status,
             commands::package_prepare_cancel,
             commands::package_prepare_remove_file,
             commands::package_preview,
