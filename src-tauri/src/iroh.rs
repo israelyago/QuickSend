@@ -17,6 +17,8 @@ use iroh_blobs::{
 use n0_future::StreamExt;
 use tokio::time::{timeout, Duration};
 
+use crate::utils::mime::infer_mime_type;
+
 pub struct IrohNode {
     store: FsStore,
     router: Option<Router>,
@@ -379,30 +381,6 @@ fn sanitize_collection_path(name: &str) -> Result<PathBuf> {
         return Err(anyhow!("invalid file path in collection: {name}"));
     }
     Ok(sanitized)
-}
-
-fn infer_mime_type(name: &str) -> String {
-    let ext = Path::new(name)
-        .extension()
-        .and_then(|value| value.to_str())
-        .unwrap_or_default()
-        .to_ascii_lowercase();
-
-    let mime = match ext.as_str() {
-        "txt" => "text/plain",
-        "md" => "text/markdown",
-        "json" => "application/json",
-        "pdf" => "application/pdf",
-        "png" => "image/png",
-        "jpg" | "jpeg" => "image/jpeg",
-        "gif" => "image/gif",
-        "webp" => "image/webp",
-        "csv" => "text/csv",
-        "zip" => "application/zip",
-        _ => "application/octet-stream",
-    };
-
-    mime.to_string()
 }
 
 #[cfg(test)]

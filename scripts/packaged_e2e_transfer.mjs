@@ -47,7 +47,7 @@ function spawnTauriDriver(extraEnv, options) {
       ...extraEnv,
     },
   });
-  child.on("error", () => {});
+  child.on("error", () => { });
   return child;
 }
 
@@ -185,7 +185,10 @@ async function run() {
       .then((el) => el.click());
     await receiverSession
       .wait(until.elementLocated(By.css("#ticket-input")), 10_000)
-      .then((el) => el.sendKeys(ticket));
+      .then(async (el) => {
+        el.value = '';
+        await el.sendKeys(ticket);
+      })
     await receiverSession
       .wait(until.elementLocated(By.xpath("//button[normalize-space()='Preview Package']")), 10_000)
       .then((el) => el.click());
@@ -213,8 +216,8 @@ async function run() {
     }
     throw error;
   } finally {
-    if (senderSession) await senderSession.quit().catch(() => {});
-    if (receiverSession) await receiverSession.quit().catch(() => {});
+    if (senderSession) await senderSession.quit().catch(() => { });
+    if (receiverSession) await receiverSession.quit().catch(() => { });
     if (senderDriver) {
       senderDriver.kill("SIGTERM");
       await delay(300);
@@ -225,7 +228,7 @@ async function run() {
       await delay(300);
       if (!receiverDriver.killed) receiverDriver.kill("SIGKILL");
     }
-    await rm(root, { recursive: true, force: true }).catch(() => {});
+    await rm(root, { recursive: true, force: true }).catch(() => { });
   }
 }
 
