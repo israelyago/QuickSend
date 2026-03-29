@@ -10,8 +10,14 @@ export type LocalFileInfo = {
 
 export async function inspectFilesWithFolderWarnings(paths: string[]): Promise<LocalFileInfo[]> {
   const inspected = await invoke<LocalFileInfo[]>("inspect_files", { files: paths });
-  const normalizePath = (value: string) => value.replace(/\\/g, "/");
+  const normalizePath = (value: string) =>
+    value
+      .replace(/\\/g, "/")
+      .replace(/^\/\/(\?|.)\//, "")
+      .toLowerCase();
+
   const inspectedPaths = inspected.map((file) => normalizePath(file.path));
+
   const emptyFolders = paths.filter((rawPath) => {
     const root = normalizePath(rawPath);
     return !inspectedPaths.some(
