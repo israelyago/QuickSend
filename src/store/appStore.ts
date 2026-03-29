@@ -339,6 +339,7 @@ export const useAppStore = create<AppState>((set) => ({
                 processedBytes: 0,
                 totalBytes: pkg.totalSizeBytes,
               },
+              prepareSequence: 0,
               files: pkg.files.map((file) => ({
                 ...file,
                 prepareStatus: "queued",
@@ -450,6 +451,15 @@ export const useAppStore = create<AppState>((set) => ({
           return pkg;
         }
 
+        if (
+          event.sequence < (pkg.prepareSequence ?? 0) ||
+          pkg.prepareStatus === "completed" ||
+          pkg.prepareStatus === "failed" ||
+          pkg.prepareStatus === "cancelled"
+        ) {
+          return pkg;
+        }
+
         const files = pkg.files.map((file) => {
           const match = event.files.find(
             (progressFile) =>
@@ -484,6 +494,7 @@ export const useAppStore = create<AppState>((set) => ({
               ? "preparing"
               : event.status,
           prepareProgress: buildPrepareProgressFromFiles(files),
+          prepareSequence: event.sequence,
         };
       }),
     }));
@@ -514,6 +525,7 @@ export const useAppStore = create<AppState>((set) => ({
                 status: pkg.ticket ? pkg.status : "preparing",
                 prepareStatus: "completed",
                 prepareProgress: buildPrepareProgressFromFiles(files),
+                prepareSequence: Number.MAX_SAFE_INTEGER,
               };
             })()
           : pkg,
@@ -528,6 +540,7 @@ export const useAppStore = create<AppState>((set) => ({
               ...pkg,
               status: "failed",
               prepareStatus: "failed",
+              prepareSequence: Number.MAX_SAFE_INTEGER,
             }
           : pkg,
       ),
@@ -541,6 +554,7 @@ export const useAppStore = create<AppState>((set) => ({
               ...pkg,
               status: "cancelled",
               prepareStatus: "cancelled",
+              prepareSequence: Number.MAX_SAFE_INTEGER,
             }
           : pkg,
       ),

@@ -43,6 +43,7 @@ export type Package = {
   };
   ticket?: string;
   downloadDir?: string;
+  prepareSequence?: number;
   createdAtIso: string;
 };
 
