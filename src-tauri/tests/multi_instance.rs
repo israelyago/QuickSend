@@ -70,8 +70,6 @@ async fn sequential_collections_download_with_same_nodes() -> Result<()> {
         fs::read(&file_b)?
     );
 
-    sender.shutdown().await?;
-    receiver.shutdown().await?;
     fs::remove_dir_all(base_dir)?;
     Ok(())
 }

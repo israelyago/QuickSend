@@ -534,8 +534,10 @@ mod tests {
         fs::write(&file_a, b"hello from quicksend milestone 2")?;
         fs::write(&file_b, b"another file")?;
 
-        let sender = IrohNode::start(&send_store_dir).await?;
-        let receiver = IrohNode::start(&recv_store_dir).await?;
+        let (sender, receiver) = tokio::try_join!(
+            IrohNode::start(&send_store_dir),
+            IrohNode::start(&recv_store_dir)
+        )?;
 
         let ticket = sender
             .create_collection_ticket(&[
@@ -566,9 +568,6 @@ mod tests {
         let ticket_roundtrip: BlobTicket = ticket.parse()?;
         assert_eq!(ticket_roundtrip.to_string(), ticket);
 
-        sender.shutdown().await?;
-        receiver.shutdown().await?;
-
         fs::remove_dir_all(base_dir)?;
 
         Ok(())
@@ -590,8 +589,10 @@ mod tests {
         let expected_size_a = fs::metadata(&file_a)?.len();
         let expected_size_b = fs::metadata(&file_b)?.len();
 
-        let sender = IrohNode::start(&send_store_dir).await?;
-        let receiver = IrohNode::start(&recv_store_dir).await?;
+        let (sender, receiver) = tokio::try_join!(
+            IrohNode::start(&send_store_dir),
+            IrohNode::start(&recv_store_dir)
+        )?;
 
         let ticket = sender
             .create_collection_ticket(&[
@@ -626,8 +627,6 @@ mod tests {
             "preview should not persist collection metadata/content in local store"
         );
 
-        sender.shutdown().await?;
-        receiver.shutdown().await?;
         fs::remove_dir_all(base_dir)?;
         Ok(())
     }
