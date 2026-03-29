@@ -11,7 +11,7 @@ export function SendPage() {
   const [error, setError] = useState<string | null>(null);
 
   const createSendDraftPackage = useAppStore((state) => state.createSendDraftPackage);
-  const { selectFiles: selectFilesWithDialog, selectFolders: selectFoldersWithDialog } = useFileSelectionDialog({ title: "Select files to send" });
+  const { selectFiles: selectFilesWithDialog, selectFolders: selectFoldersWithDialog } = useFileSelectionDialog({ title: "Select files to send", foldersTitle: "Select a folder to send" });
 
   const createPackageFromPaths = useCallback(
     async (paths: string[]) => {

@@ -79,7 +79,7 @@ export function PackagePage() {
     setActiveMenuRect,
   } = useRowActionMenu({ canEditFiles, rows });
   const { progressPercent, rateBps, etaSeconds } = useReceiveTransferStats({ packageData });
-  const { selectFiles, selectFolders } = useFileSelectionDialog({ title: "Select files to add" });
+  const { selectFiles, selectFolders } = useFileSelectionDialog({ title: "Select files to add", foldersTitle: "Select a folder to add" });
 
   const addFilesFromPaths = useCallback(
     async (paths: string[]) => {

@@ -3,9 +3,10 @@ import { open } from "@tauri-apps/plugin-dialog";
 
 type Args = {
   title: string;
+  foldersTitle: string;
 };
 
-export function useFileSelectionDialog({ title }: Args) {
+export function useFileSelectionDialog({ title, foldersTitle }: Args) {
   const selectFiles = useCallback(async () => {
     const selected = await open({
       multiple: true,
@@ -24,7 +25,7 @@ export function useFileSelectionDialog({ title }: Args) {
     const selected = await open({
       multiple: false,
       directory: true,
-      title,
+      title: foldersTitle ?? title,
     });
 
     if (!selected) {
@@ -32,7 +33,7 @@ export function useFileSelectionDialog({ title }: Args) {
     }
 
     return Array.isArray(selected) ? selected : [selected];
-  }, [title]);
+  }, [title, foldersTitle]);
 
   return { selectFiles, selectFolders };
 }
