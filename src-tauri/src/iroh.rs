@@ -1,7 +1,7 @@
 use std::path::{Component, Path, PathBuf};
 
 use anyhow::{anyhow, Context, Result};
-use iroh::{protocol::Router, Endpoint};
+use iroh::{endpoint::presets, protocol::Router, Endpoint};
 use iroh_blobs::{
     api::blobs::AddProgressItem,
     api::remote::GetProgressItem,
@@ -77,8 +77,7 @@ impl IrohNode {
         std::fs::create_dir_all(data_dir.as_ref())
             .with_context(|| format!("failed creating data dir {}", data_dir.as_ref().display()))?;
 
-        let endpoint = Endpoint::empty_builder()
-            .bind()
+        let endpoint = Endpoint::bind(presets::N0)
             .await
             .context("failed to bind iroh endpoint")?;
 
@@ -239,7 +238,6 @@ impl IrohNode {
                     return Err(anyhow!(err).context("failed importing file into blob store"));
                 }
             }
-
         }
 
         Err(anyhow!("unexpected end of import progress stream"))
