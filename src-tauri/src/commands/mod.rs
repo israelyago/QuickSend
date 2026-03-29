@@ -3,9 +3,9 @@ use tauri_plugin_clipboard_manager::Clipboard;
 
 use crate::{
     api::dto::{
-        CancelResponse, LocalFileInfo, PackageDownloadResponse,
-        PackagePrepareAddFilesResponse, PackagePrepareFinalizeResponse, PackagePrepareStartResponse,
-        PackagePreviewResponse, PersistedSettings,
+        CancelResponse, LocalFileInfo, PackageDownloadResponse, PackagePrepareAddFilesResponse,
+        PackagePrepareFinalizeResponse, PackagePrepareStartResponse, PackagePreviewResponse,
+        PersistedSettings,
     },
     services::{prepare, settings, transfer},
     state::IrohAppState,
@@ -134,7 +134,7 @@ pub fn settings_save(app: tauri::AppHandle, settings: PersistedSettings) -> Resu
 pub fn clipboard_ticket(clipboard: State<'_, Clipboard<Wry>>) -> Result<Option<String>, String> {
     let text = clipboard.read_text().map_err(|err| err.to_string())?;
     let trimmed = text.trim();
-    if trimmed.starts_with("blob") {
+    if trimmed.starts_with("blob") || trimmed.starts_with("quicksend://receive") {
         Ok(Some(trimmed.to_string()))
     } else {
         Ok(None)
