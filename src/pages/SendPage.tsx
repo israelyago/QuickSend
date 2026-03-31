@@ -71,7 +71,7 @@ export function SendPage() {
     <section className="space-y-6">
 
       <div>
-        <PackageFileDropzone isDragActive={isDragActive} onSelectAdditionalFiles={selectFiles} onSelectFolder={selectFolders} />
+        <PackageFileDropzone isDragActive={isDragActive} onPrimarySelection={selectFiles} onSecondarySelection={selectFolders} />
 
         {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
       </div>

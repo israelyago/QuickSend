@@ -16,6 +16,7 @@ export function useWebviewFileDrop({ enabled = true, onDropPaths }: Args) {
     }
 
     let unlisten: (() => void) | null = null;
+    let didCancel = false;
 
     const setup = async () => {
       unlisten = await getCurrentWebview().onDragDropEvent((event) => {
@@ -32,11 +33,16 @@ export function useWebviewFileDrop({ enabled = true, onDropPaths }: Args) {
 
         setIsDragActive(false);
       });
+
+      if (didCancel && unlisten) {
+        unlisten();
+      }
     };
 
     void setup();
 
     return () => {
+      didCancel = true;
       if (unlisten) {
         unlisten();
       }
