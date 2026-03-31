@@ -10,6 +10,8 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use ::iroh::{endpoint::presets, Endpoint};
+use iroh_blobs::store::fs::FsStore;
 use tauri::{Manager, RunEvent};
 use tauri_plugin_deep_link::DeepLinkExt;
 
@@ -68,8 +70,13 @@ pub fn run() {
                 .join("quicksend")
                 .join("iroh-node")
                 .join(instance_id);
-            let (node, events_rx) =
-                tauri::async_runtime::block_on(IrohNode::start_with_events(&node_dir, true))?;
+            let store = tauri::async_runtime::block_on(FsStore::load(node_dir.clone()))?;
+            let endpoint = tauri::async_runtime::block_on(Endpoint::bind(presets::N0))?;
+            let (node, events_rx) = tauri::async_runtime::block_on(IrohNode::start_with_events(
+                store.into(),
+                endpoint,
+                true,
+            ))?;
 
             let sessions = Arc::new(Mutex::new(HashMap::new()));
             let hash_to_session = Arc::new(Mutex::new(HashMap::new()));

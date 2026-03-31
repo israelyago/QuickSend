@@ -1,7 +1,9 @@
 use std::path::{Component, Path, PathBuf};
+use std::time::Instant;
 
 use anyhow::{anyhow, Context, Result};
-use iroh::{endpoint::presets, protocol::Router, Endpoint};
+use iroh::{protocol::Router, Endpoint};
+use iroh_blobs::api::Store;
 use iroh_blobs::{
     api::blobs::AddProgressItem,
     api::remote::GetProgressItem,
@@ -11,7 +13,6 @@ use iroh_blobs::{
     provider::events::{
         ConnectMode, EventMask, EventSender, ProviderMessage, RequestMode, ThrottleMode,
     },
-    store::fs::FsStore,
     ticket::BlobTicket,
     BlobFormat, BlobsProtocol,
 };
@@ -21,7 +22,7 @@ use tokio::time::{timeout, Duration};
 use crate::utils::mime::infer_mime_type;
 
 pub struct IrohNode {
-    store: FsStore,
+    store: Store,
     router: Option<Router>,
 }
 
@@ -65,25 +66,16 @@ impl IrohNode {
         }
     }
 
-    pub async fn start(data_dir: impl AsRef<Path>) -> Result<Self> {
-        let (node, _rx) = Self::start_with_events(data_dir, false).await?;
-        Ok(node)
-    }
-
     pub async fn start_with_events(
-        data_dir: impl AsRef<Path>,
+        store: Store,
+        endpoint: Endpoint,
         capture_events: bool,
     ) -> Result<(Self, tokio::sync::mpsc::Receiver<ProviderMessage>)> {
-        std::fs::create_dir_all(data_dir.as_ref())
-            .with_context(|| format!("failed creating data dir {}", data_dir.as_ref().display()))?;
-
-        let endpoint = Endpoint::bind(presets::N0)
-            .await
-            .context("failed to bind iroh endpoint")?;
-
-        let store = FsStore::load(data_dir)
-            .await
-            .context("failed to initialize iroh blob store")?;
+        let bind_start = Instant::now();
+        println!(
+            "[iroh][start] endpoint bind took: {:?}",
+            bind_start.elapsed()
+        );
 
         let (events_tx, events_rx) = if capture_events {
             let event_mask = EventMask {
@@ -104,7 +96,7 @@ impl IrohNode {
 
         Ok((
             Self {
-                store,
+                store: store.into(),
                 router: Some(router),
             },
             events_rx,
@@ -464,7 +456,7 @@ impl IrohNode {
         &self,
         root_hash: iroh_blobs::Hash,
     ) -> Result<Vec<(String, iroh_blobs::Hash, u64)>> {
-        let collection = Collection::load(root_hash, self.store.as_ref())
+        let collection = Collection::load(root_hash, &self.store)
             .await
             .context("failed to read downloaded collection metadata")?;
 
@@ -501,7 +493,25 @@ fn sanitize_collection_path(name: &str) -> Result<PathBuf> {
 
 #[cfg(test)]
 mod tests {
+    use iroh::{address_lookup::MemoryLookup, RelayMode};
+    use iroh_blobs::store::mem::MemStore;
+
     use super::*;
+
+    impl IrohNode {
+        pub async fn start() -> Result<Self> {
+            let store = MemStore::new();
+            let address_lookup = MemoryLookup::new();
+            let endpoint = iroh::Endpoint::empty_builder()
+                .relay_mode(RelayMode::Default)
+                .address_lookup(address_lookup.clone())
+                .bind()
+                .await
+                .context("failed to bind iroh endpoint")?;
+            let (node, _rx) = Self::start_with_events(store.into(), endpoint, false).await?;
+            Ok(node)
+        }
+    }
 
     use std::{
         fs,
@@ -522,8 +532,7 @@ mod tests {
     #[tokio::test]
     async fn local_roundtrip_collection_downloads_files() -> Result<()> {
         let base_dir = unique_temp_dir("m2")?;
-        let send_store_dir = base_dir.join("send-store");
-        let recv_store_dir = base_dir.join("recv-store");
+
         let input_dir = base_dir.join("input");
         let output_dir = base_dir.join("output");
 
@@ -534,10 +543,7 @@ mod tests {
         fs::write(&file_a, b"hello from quicksend milestone 2")?;
         fs::write(&file_b, b"another file")?;
 
-        let (sender, receiver) = tokio::try_join!(
-            IrohNode::start(&send_store_dir),
-            IrohNode::start(&recv_store_dir)
-        )?;
+        let (sender, receiver) = tokio::try_join!(IrohNode::start(), IrohNode::start())?;
 
         let ticket = sender
             .create_collection_ticket(&[
@@ -576,8 +582,6 @@ mod tests {
     #[tokio::test]
     async fn preview_collection_is_metadata_only() -> Result<()> {
         let base_dir = unique_temp_dir("preview-metadata")?;
-        let send_store_dir = base_dir.join("send-store");
-        let recv_store_dir = base_dir.join("recv-store");
         let input_dir = base_dir.join("input");
         fs::create_dir_all(&input_dir)?;
 
@@ -589,10 +593,7 @@ mod tests {
         let expected_size_a = fs::metadata(&file_a)?.len();
         let expected_size_b = fs::metadata(&file_b)?.len();
 
-        let (sender, receiver) = tokio::try_join!(
-            IrohNode::start(&send_store_dir),
-            IrohNode::start(&recv_store_dir)
-        )?;
+        let (sender, receiver) = tokio::try_join!(IrohNode::start(), IrohNode::start())?;
 
         let ticket = sender
             .create_collection_ticket(&[
@@ -620,8 +621,7 @@ mod tests {
         );
 
         let ticket_roundtrip: BlobTicket = ticket.parse()?;
-        let load_from_local =
-            Collection::load(ticket_roundtrip.hash(), receiver.store.as_ref()).await;
+        let load_from_local = Collection::load(ticket_roundtrip.hash(), &receiver.store).await;
         assert!(
             load_from_local.is_err(),
             "preview should not persist collection metadata/content in local store"

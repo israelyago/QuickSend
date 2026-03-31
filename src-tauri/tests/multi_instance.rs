@@ -5,6 +5,8 @@ use std::{
 };
 
 use anyhow::{Context, Result};
+use iroh::{endpoint::presets, Endpoint};
+use iroh_blobs::store::fs::FsStore;
 use quicksend_lib::iroh::{IrohNode, SourceFile};
 
 fn unique_temp_dir(prefix: &str) -> Result<PathBuf> {
@@ -33,8 +35,21 @@ async fn sequential_collections_download_with_same_nodes() -> Result<()> {
     fs::write(&file_a, b"first package payload")?;
     fs::write(&file_b, b"second package payload")?;
 
-    let sender = IrohNode::start(&send_store_dir).await?;
-    let receiver = IrohNode::start(&recv_store_dir).await?;
+    let send_store = FsStore::load(send_store_dir.clone())
+        .await
+        .context("failed to initialize iroh blob store")?;
+    let recv_store = FsStore::load(recv_store_dir.clone())
+        .await
+        .context("failed to initialize iroh blob store")?;
+    let send_endpoint = Endpoint::bind(presets::N0DisableRelay)
+        .await
+        .context("failed to bind iroh endpoint")?;
+    let recv_endpoint = Endpoint::bind(presets::N0DisableRelay)
+        .await
+        .context("failed to bind iroh endpoint")?;
+    let (sender, _) = IrohNode::start_with_events(send_store.into(), send_endpoint, false).await?;
+    let (receiver, _) =
+        IrohNode::start_with_events(recv_store.into(), recv_endpoint, false).await?;
 
     let ticket_a = sender
         .create_collection_ticket(&[SourceFile {
