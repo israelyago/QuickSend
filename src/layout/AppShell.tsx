@@ -76,7 +76,7 @@ export function AppShell() {
     <div className="flex min-h-screen w-full flex-col bg-background text-foreground">
       <TopNav onOpenSettings={() => setSettingsOpen(true)} />
 
-      <main className="mx-auto w-full max-w-5xl flex-1 p-6 md:p-10">
+      <main className="mx-auto w-full max-w-5xl flex-1 p-6">
         <Outlet />
       </main>
 

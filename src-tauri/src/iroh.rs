@@ -1,5 +1,4 @@
 use std::path::{Component, Path, PathBuf};
-use std::time::Instant;
 
 use anyhow::{anyhow, Context, Result};
 use iroh::{protocol::Router, Endpoint};
@@ -71,12 +70,6 @@ impl IrohNode {
         endpoint: Endpoint,
         capture_events: bool,
     ) -> Result<(Self, tokio::sync::mpsc::Receiver<ProviderMessage>)> {
-        let bind_start = Instant::now();
-        println!(
-            "[iroh][start] endpoint bind took: {:?}",
-            bind_start.elapsed()
-        );
-
         let (events_tx, events_rx) = if capture_events {
             let event_mask = EventMask {
                 connected: ConnectMode::Notify,
@@ -96,7 +89,7 @@ impl IrohNode {
 
         Ok((
             Self {
-                store: store.into(),
+                store,
                 router: Some(router),
             },
             events_rx,

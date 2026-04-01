@@ -68,12 +68,11 @@ export function SendPage() {
   }
 
   return (
-    <section className="space-y-6">
-
-      <div>
+    <section className="flex flex-col items-center justify-center py-14">
+      <div className="w-1/2 rounded-xl bg-card text-card-foreground shadow-sm p-6">
         <PackageFileDropzone isDragActive={isDragActive} onPrimarySelection={selectFiles} onSecondarySelection={selectFolders} />
 
-        {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
+        {error ? <p className="mt-3 text-sm text-center text-red-600">{error}</p> : null}
       </div>
     </section>
   );

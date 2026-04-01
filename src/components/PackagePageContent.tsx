@@ -64,9 +64,9 @@ export function PackagePageContent({
   formatDuration,
 }: Props) {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
       {/* Left Column: Progress & Table */}
-      <div className="flex flex-col gap-4 order-2 lg:order-1">
+      <div className="flex flex-col gap-4 order-2 md:order-1">
         {packageData.mode === "send" &&
           packageData.prepareStatus &&
           packageData.prepareStatus !== "completed" &&
@@ -133,7 +133,7 @@ export function PackagePageContent({
       </div>
 
       {/* Right Column: Dropzones */}
-      <div className="flex flex-col gap-4 order-1 lg:order-2">
+      <div className="rounded-xl bg-card text-card-foreground shadow-sm p-6 flex flex-col gap-4 order-1 md:order-2">
         {packageData.mode === "send" && canEditFiles ? (
           <div className="flex flex-row gap-3">
             <div className="flex-1">
