@@ -122,12 +122,19 @@ export function usePackageActions({
       setError("Files are still being prepared. Please try again in a moment.");
       return;
     }
-    if (packageData.prepareStatus === "preparing" || packageData.prepareStatus === "idle") {
-      setError("Preparing files, please wait for completion.");
+
+    // Capture the current busy state before deciding what to do
+    const wasBusyBefore = busy;
+
+    // We always want to be "busy" if we are in this flow
+    setBusy(true);
+
+    // If we weren't already showing the progress screen, just return here and show it.
+    // This allows the user to see the "Prepared" state before they manually click to finalize.
+    if (!wasBusyBefore) {
       return;
     }
 
-    setBusy(true);
     setError(null);
 
     try {
@@ -140,7 +147,6 @@ export function usePackageActions({
         backendPackageId: response.packageId,
         ticket: response.ticket,
       });
-      await copyTicket(response.ticket);
     } catch (cause) {
       setError(String(cause));
     } finally {
@@ -151,8 +157,8 @@ export function usePackageActions({
     copyTicket,
     packageData.id,
     packageData.prepareSessionId,
-    packageData.prepareStatus,
     packageData.sourcePaths,
+    busy,
   ]);
 
   useEffect(() => {
@@ -227,12 +233,19 @@ export function usePackageActions({
     packageData.id,
     packageData.mode,
     packageData.prepareSessionId,
+    packageData.prepareStatus,
     packageData.selectedRoots,
     packageData.sourcePaths,
     packageData.ticket,
     applyPrepareProgress,
     startPackagePrepare,
   ]);
+
+  useEffect(() => {
+    if (busy && packageData.prepareStatus === "completed" && !packageData.ticket) {
+      void generateTicket();
+    }
+  }, [busy, packageData.prepareStatus, packageData.ticket, generateTicket]);
 
   const startDownload = useCallback(async () => {
     if (!packageData.ticket) {
@@ -302,6 +315,10 @@ export function usePackageActions({
     [packageData.id, packageData.prepareSessionId, removeFileFromPackage],
   );
 
+  const cancelGenerateTicket = useCallback(() => {
+    setBusy(false);
+  }, []);
+
   const openDownloadFolder = useCallback(async () => {
     const targetDir = packageData.downloadDir ?? settings.downloadDir;
     if (!targetDir) {
@@ -326,6 +343,7 @@ export function usePackageActions({
   return {
     busy,
     cancelDownload,
+    cancelGenerateTicket,
     copyTicket,
     error,
     generateTicket,

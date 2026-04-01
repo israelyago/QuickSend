@@ -1,21 +1,14 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
-import { PackagePageContent } from "./PackagePageContent";
+import { SendPackageContent } from "./SendPackageContent";
 import { type Package } from "../types/domain";
 
 const defaultProps = {
-  activeMenuId: null,
-  activeRow: null,
-  busy: false,
   canEditFiles: true,
-  error: null,
   etaSeconds: null,
-  filesLocked: false,
   isDragActive: false,
-  menuPosition: null,
   progressPercent: 0,
   rateBps: null,
-  rows: [],
   settings: {
     downloadDir: "/downloads",
     theme: "system" as const,
@@ -33,9 +26,13 @@ const defaultProps = {
   removePreparingFile: vi.fn(),
   formatBytes: (val: number) => `${val} B`,
   formatDuration: (sec: number) => `${sec}s`,
+  isGeneratingTicket: false,
+  maskedTicket: "",
+  onGenerateTicket: vi.fn(),
+  onCopyTicket: vi.fn(),
 };
 
-describe("PackagePageContent Progress Bar", () => {
+describe("SendPackagePage Progress Bar", () => {
   it("does not show the general progress bar when prepareStatus is completed", () => {
     const packageData = {
       id: "pkg-1",
@@ -57,7 +54,7 @@ describe("PackagePageContent Progress Bar", () => {
       },
     } as Package;
 
-    render(<PackagePageContent {...defaultProps} packageData={packageData} />);
+    render(<SendPackageContent {...defaultProps} packageData={packageData} />);
 
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
   });

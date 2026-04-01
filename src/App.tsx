@@ -6,7 +6,8 @@ import { check } from "@tauri-apps/plugin-updater";
 import { toast } from "sonner";
 import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "./layout/AppShell";
-import { PackagePage } from "./pages/PackagePage";
+import { SendPackagePage } from "./pages/SendPackagePage";
+import { ReceivePackagePage } from "./pages/ReceivePackagePage";
 import { ReceivePage } from "./pages/ReceivePage";
 import { SendPage } from "./pages/SendPage";
 import { useAppStore } from "./store/appStore";
@@ -324,7 +325,7 @@ function App() {
         store.setReceiveDraftTicket("");
         store.setAutoFilledClipboardTicket(null);
         store.setAutoPreviewedClipboardTicket(ticket);
-        window.location.hash = `#/package/${localId}`;
+        window.location.hash = `#/receive/${localId}`;
         return true;
       } catch (error) {
         console.error("Failed to preview package from deep link", error);
@@ -382,7 +383,8 @@ function App() {
             <Route path="/" element={<Navigate to="/send" replace />} />
             <Route path="/send" element={<SendPage />} />
             <Route path="/receive" element={<ReceivePage />} />
-            <Route path="/package/:id" element={<PackagePage />} />
+            <Route path="/package/:id" element={<SendPackagePage />} />
+            <Route path="/receive/:id" element={<ReceivePackagePage />} />
             <Route path="*" element={<Navigate to="/send" replace />} />
           </Route>
         </Routes>

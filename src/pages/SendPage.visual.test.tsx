@@ -20,7 +20,7 @@ vi.mock("@tauri-apps/api/webview", () => ({
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { SendPage } from "./SendPage";
-import { PackagePage } from "./PackagePage";
+import { SendPackagePage } from "./SendPackagePage";
 import { TEST_SOURCE_FILE_PATH } from "../test/helpers/paths";
 import { resetAppStoreForTest } from "../test/helpers/store";
 import { mockTauriInvoke } from "../test/helpers/tauri";
@@ -52,7 +52,7 @@ describe("Send -> Package visual flow", () => {
       <MemoryRouter initialEntries={["/send"]}>
         <Routes>
           <Route path="/send" element={<SendPage />} />
-          <Route path="/package/:id" element={<PackagePage />} />
+          <Route path="/package/:id" element={<SendPackagePage />} />
         </Routes>
       </MemoryRouter>,
     );
@@ -64,11 +64,12 @@ describe("Send -> Package visual flow", () => {
       files: [TEST_SOURCE_FILE_PATH],
     });
 
-    expect(await screen.findByRole("columnheader", { name: "Name" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "File size" })).toBeInTheDocument();
-    expect(screen.getByText("demo.txt")).toBeInTheDocument();
+    expect(await screen.findByText("demo.txt")).toBeInTheDocument();
+    expect(screen.getAllByText("1.0 KB")).toHaveLength(2); // One in summary, one in file list
+    expect(screen.getByText(/1\s+file/i)).toBeInTheDocument();
 
-    const table = screen.getByRole("table");
-    expect(table).toMatchSnapshot();
+    // Snapshot the grid layout
+    const grid = screen.getByRole("grid");
+    expect(grid).toMatchSnapshot();
   });
 });

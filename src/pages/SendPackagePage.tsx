@@ -1,22 +1,21 @@
-import { useCallback, useMemo } from "react";
-import { useParams } from "react-router-dom";
+import { useCallback, useMemo, useState } from "react";
+import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { useAppStore } from "../store/appStore";
 import { Package } from "lucide-react";
 import { TooltipProvider } from "../components/ui/tooltip";
-import { usePackageRows } from "../hooks/usePackageRows";
 import { useReceiveTransferStats } from "../hooks/useReceiveTransferStats";
-import { PackagePageHeader } from "../components/PackagePageHeader";
-import { PackagePageContent } from "../components/PackagePageContent";
+import { SendPackageContent } from "../components/SendPackageContent";
 import { usePackageActions } from "../hooks/usePackageActions";
-import { useAutoDownloadOnIdleReceive } from "../hooks/useAutoDownloadOnIdleReceive";
 import { inspectFilesWithFolderWarnings } from "../lib/inspectFiles";
 import { useWebviewFileDrop } from "../hooks/useWebviewFileDrop";
 import { formatBytes, formatDuration } from "../lib/formatters";
-import { useRowActionMenu } from "../hooks/useRowActionMenu";
 import { useFileSelectionDialog } from "../hooks/useFileSelectionDialog";
+import { useSendPrepareStats } from "../hooks/useSendPrepareStats";
 
-export function PackagePage() {
+export function SendPackagePage() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const [isFinalizing, setIsFinalizing] = useState(false);
   const packages = useAppStore((state) => state.packages);
   const settings = useAppStore((state) => state.settings);
   const attachTicketToPackage = useAppStore((state) => state.attachTicketToPackage);
@@ -24,7 +23,6 @@ export function PackagePage() {
   const startPackagePrepare = useAppStore((state) => state.startPackagePrepare);
   const markCancelledBySession = useAppStore((state) => state.markCancelledBySession);
   const removeFileFromPackage = useAppStore((state) => state.removeFileFromPackage);
-  const removeFilesFromPackage = useAppStore((state) => state.removeFilesFromPackage);
   const addFilesToPackage = useAppStore((state) => state.addFilesToPackage);
 
   const pkg = useMemo(() => {
@@ -45,19 +43,19 @@ export function PackagePage() {
       </section>
     );
   }
+
+  if (pkg.mode === "receive") {
+    return <Navigate to={`/receive/${id}`} replace />;
+  }
   const packageData = pkg;
   const {
-    busy,
     cancelDownload,
+    cancelGenerateTicket,
     copyTicket,
-    error,
     generateTicket,
     isGeneratingTicket,
     maskedTicket,
-    openDownloadFolder,
-    removePreparingFile,
     setError,
-    startDownload,
   } = usePackageActions({
     packageData,
     settings,
@@ -69,16 +67,12 @@ export function PackagePage() {
   });
   const canEditFiles =
     packageData.mode === "send" && !packageData.ticket && !isGeneratingTicket;
-  const filesLocked = packageData.mode === "send" && !canEditFiles;
-  const rows = usePackageRows(packageData);
-  const {
-    activeMenuId,
-    activeRow,
-    menuPosition,
-    setActiveMenuId,
-    setActiveMenuRect,
-  } = useRowActionMenu({ canEditFiles, rows });
-  const { progressPercent, rateBps, etaSeconds } = useReceiveTransferStats({ packageData });
+  const { progressPercent: receiveProgress, rateBps: receiveRate, etaSeconds: receiveEta } = useReceiveTransferStats({ packageData });
+  const { progressPercent: sendProgress, rateBps: sendRate, etaSeconds: sendEta } = useSendPrepareStats({ packageData });
+
+  const progressPercent = packageData.mode === "send" ? sendProgress : receiveProgress;
+  const rateBps = packageData.mode === "send" ? sendRate : receiveRate;
+  const etaSeconds = packageData.mode === "send" ? sendEta : receiveEta;
   const { selectFiles, selectFolders } = useFileSelectionDialog({ title: "Select files to add", foldersTitle: "Select a folder to add" });
 
   const addFilesFromPaths = useCallback(
@@ -140,47 +134,13 @@ export function PackagePage() {
     void addFilesFromPaths(paths);
   }, [addFilesFromPaths, canEditFiles, selectFolders]);
 
-  useAutoDownloadOnIdleReceive({
-    busy,
-    packageData,
-    settings,
-    startDownload,
-  });
 
   return (
     <TooltipProvider delayDuration={100}>
       <section className="space-y-6">
-        <PackagePageHeader
-          packageData={packageData}
-          busy={busy}
-          isGeneratingTicket={isGeneratingTicket}
-          maskedTicket={maskedTicket}
-          onGenerateTicket={generateTicket}
-          onCopyTicket={() => {
-            void copyTicket();
-          }}
-          onOpenDownloadFolder={() => {
-            void openDownloadFolder();
-          }}
-          onStartDownload={() => {
-            void startDownload();
-          }}
-        />
-        <PackagePageContent
+        <SendPackageContent
           packageData={packageData}
           settings={settings}
-          filesLocked={filesLocked}
-          canEditFiles={canEditFiles}
-          rows={rows}
-          activeMenuId={activeMenuId}
-          activeRow={activeRow}
-          menuPosition={menuPosition}
-          setActiveMenuId={setActiveMenuId}
-          setActiveMenuRect={setActiveMenuRect}
-          removeFileFromPackage={removeFileFromPackage}
-          removeFilesFromPackage={removeFilesFromPackage}
-          removePreparingFile={removePreparingFile}
-          busy={busy}
           etaSeconds={etaSeconds}
           progressPercent={progressPercent}
           rateBps={rateBps}
@@ -188,11 +148,30 @@ export function PackagePage() {
           onSelectAdditionalFiles={selectAdditionalFiles}
           onSelectFolder={selectAdditionalFolders}
           onCancelDownload={() => {
-            void cancelDownload();
+            setIsFinalizing(false);
+            if (packageData.mode === "send" && isGeneratingTicket) {
+              cancelGenerateTicket();
+            } else {
+              void cancelDownload();
+            }
           }}
           formatBytes={formatBytes}
           formatDuration={formatDuration}
-          error={error}
+          isGeneratingTicket={isGeneratingTicket}
+          maskedTicket={maskedTicket}
+          onGenerateTicket={async () => {
+            await generateTicket();
+            setIsFinalizing(true);
+          }}
+          onCopyTicket={() => {
+            void copyTicket();
+          }}
+          onDone={() => {
+            setIsFinalizing(false);
+            navigate("/send");
+          }}
+          isFinalizing={isFinalizing}
+          removeFileFromPackage={removeFileFromPackage}
         />
       </section>
     </TooltipProvider>

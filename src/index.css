@@ -104,3 +104,29 @@ button:disabled {
 .qs-slide-down {
   animation: qs-slide-down 180ms ease-out;
 }
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: hsl(215 20.2% 65.1% / 0.3);
+  border-radius: 10px;
+}
+
+.custom-scrollbar.dark::-webkit-scrollbar-thumb,
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: hsl(240 4.9% 83.9% / 0.2);
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: hsl(215 20.2% 65.1% / 0.5);
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: hsl(240 4.9% 83.9% / 0.3);
+}

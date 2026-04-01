@@ -26,7 +26,7 @@ vi.mock("@tauri-apps/plugin-opener", () => ({
 }));
 
 import { invoke } from "@tauri-apps/api/core";
-import { PackagePage } from "./PackagePage";
+import { SendPackagePage } from "./SendPackagePage";
 import { ReceivePage } from "./ReceivePage";
 import { TEST_DOWNLOAD_DIR, TEST_TRANSFER_OUTPUT_DIR } from "../test/helpers/paths";
 import { resetAppStoreForTest } from "../test/helpers/store";
@@ -71,7 +71,7 @@ describe("Receive download UI flow", () => {
       <MemoryRouter initialEntries={["/receive"]}>
         <Routes>
           <Route path="/receive" element={<ReceivePage />} />
-          <Route path="/package/:id" element={<PackagePage />} />
+          <Route path="/package/:id" element={<SendPackagePage />} />
         </Routes>
       </MemoryRouter>,
     );

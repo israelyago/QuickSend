@@ -61,7 +61,7 @@ export function ReceivePage() {
 
         setAutoPreviewedClipboardTicket(rawTicket.trim());
         setReceiveDraftTicket("");
-        navigate(`/package/${localId}`);
+        navigate(`/receive/${localId}`);
       } catch (cause) {
         setError(String(cause));
       } finally {
@@ -125,7 +125,7 @@ export function ReceivePage() {
               key={pkg.id}
               pkg={pkg}
               sizeUnit={settings.sizeUnit}
-              onOpen={() => navigate(`/package/${pkg.id}`)}
+              onOpen={() => navigate(`/receive/${pkg.id}`)}
             />
           ))}
         </div>

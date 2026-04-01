@@ -110,6 +110,7 @@ type AppState = {
   applyProgressEvent: (event: TransferProgressEvent) => void;
   applyCompletedEvent: (event: TransferCompletedEvent) => void;
   applyErrorEvent: (event: TransferErrorEvent) => void;
+  clearPackageTicket: (packageId: string) => void;
 };
 
 const initialSettings: Settings = {
@@ -624,6 +625,24 @@ export const useAppStore = create<AppState>((set) => ({
           ? {
               ...pkg,
               status: "failed",
+            }
+          : pkg,
+      ),
+    }));
+  },
+  clearPackageTicket: (packageId) => {
+    set((state) => ({
+      packages: state.packages.map((pkg) =>
+        pkg.id === packageId
+          ? {
+              ...pkg,
+              ticket: undefined,
+              sessionId: undefined,
+              backendPackageId: undefined,
+              status: "idle",
+              prepareStatus: "idle",
+              prepareSessionId: undefined,
+              prepareProgress: undefined,
             }
           : pkg,
       ),
