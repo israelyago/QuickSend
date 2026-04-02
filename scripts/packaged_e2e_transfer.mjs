@@ -217,32 +217,32 @@ async function run() {
     const ticket = finalized.ticket;
 
     await receiverSession
-      .wait(until.elementLocated(By.css('a[href="#/receive"]')), 10_000)
+      .wait(until.elementLocated(By.css('a[href="#/receive"]')), 5_000)
       .then((el) => el.click());
     await receiverSession
-      .wait(until.elementLocated(By.css("#ticket-input")), 10_000)
+      .wait(until.elementLocated(By.css("#ticket-input")), 5_000)
       .then(async (el) => {
         el.value = '';
         await el.sendKeys(ticket);
       })
     await receiverSession
-      .wait(until.elementLocated(By.xpath("//button[normalize-space()='Preview Package']")), 10_000)
+      .wait(until.elementLocated(By.xpath("//button[normalize-space()='Download']")), 5_000)
       .then((el) => el.click());
 
     const downloadBtn = await receiverSession.wait(
-      until.elementLocated(By.xpath("//button[contains(., 'Download Package')]")),
-      10_000,
+      until.elementLocated(By.xpath("//button[contains(., 'Download All')]")),
+      5_000,
     );
     if (await downloadBtn.isEnabled()) {
       await downloadBtn.click();
     }
 
     await receiverSession.wait(
-      until.elementLocated(By.xpath("//button[contains(., 'Open files folder')]")),
-      20_000,
+      until.elementLocated(By.xpath("//button[contains(., 'Open Files')]")),
+      5_000,
     );
 
-    await waitForFile(expectedOutFile, 20_000);
+    await waitForFile(expectedOutFile, 5_000);
 
     console.log("Packaged desktop transfer E2E passed: receiver downloaded sender file.");
   } catch (error) {

@@ -5,6 +5,9 @@ import { useAppStore } from "../store/appStore";
 import { ReceivePackageCard } from "../components/ReceivePackageCard";
 import { useReceiveClipboardTicketSync } from "../hooks/useReceiveClipboardTicketSync";
 import { resolveTicketInput } from "../lib/ticketLink";
+import { Card, CardContent, CardFooter } from "../components/ui/card";
+import { Button } from "../components/ui/button";
+import { ArrowDown, History, Loader2 } from "lucide-react";
 
 type PackagePreviewResponse = {
   packageId: string;
@@ -68,7 +71,7 @@ export function ReceivePage() {
         setBusy(false);
       }
     },
-    [createReceivePreviewPackage, navigate, setAutoPreviewedClipboardTicket],
+    [createReceivePreviewPackage, navigate, setAutoPreviewedClipboardTicket, setReceiveDraftTicket],
   );
 
   useReceiveClipboardTicketSync({
@@ -86,50 +89,85 @@ export function ReceivePage() {
   }
 
   return (
-    <section className="space-y-6">
-      <header>
-        <h2 className="text-2xl font-semibold">Receive</h2>
-        <p className="text-sm text-muted-foreground">
-          Paste a QuickSend link or a ticket and preview package contents.
-        </p>
-      </header>
+    <div className="flex flex-col items-center gap-12 py-12 px-4 animate-in fade-in transition-all duration-700">
+      <Card className="w-full max-w-[400px] shadow-sm border-slate-200 dark:border-zinc-800 overflow-hidden bg-card">
+        <CardContent className="pt-10 pb-8 flex flex-col items-center text-center gap-6">
+          <div className="h-20 w-20 bg-primary/10 rounded-full flex items-center justify-center transition-colors duration-500">
+            <ArrowDown className="h-10 w-10 text-primary" />
+          </div>
 
-      <div className="rounded-lg border border-border bg-card p-4">
-        <label className="mb-2 block text-sm font-medium" htmlFor="ticket-input">
-          Ticket
-        </label>
-        <textarea
-          id="ticket-input"
-          className="h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
-          placeholder="Paste quicksend://receive?... or blob ticket"
-          value={receiveDraftTicket}
-          onChange={(event) => setReceiveDraftTicket(event.target.value)}
-        />
+          <div className="space-y-2">
+            <h3 className="text-2xl font-bold text-slate-900 dark:text-zinc-100">Download</h3>
+            <p className="text-sm text-slate-500 dark:text-zinc-400">
+              Paste your link here:
+            </p>
+          </div>
 
-        <button
-          className="mt-4 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
-          type="button"
-          onClick={previewPackage}
-          disabled={busy || receiveDraftTicket.trim().length === 0}
-        >
-          {busy ? "Previewing..." : "Preview Package"}
-        </button>
-
-        {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
-      </div>
-
-      {receivePackages.length === 0 ? null : (
-        <div id="receive-packages-list" className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-          {receivePackages.map((pkg) => (
-            <ReceivePackageCard
-              key={pkg.id}
-              pkg={pkg}
-              sizeUnit={settings.sizeUnit}
-              onOpen={() => navigate(`/receive/${pkg.id}`)}
+          <div className="w-full px-2">
+            <input
+              aria-label="quicksend-link"
+              id="ticket-input"
+              className="w-full h-12 px-4 rounded-xl border-2 border-primary/20 bg-primary/5 text-sm font-mono text-primary transition-all focus:bg-primary/10 focus:border-primary/40 focus:outline-none placeholder:text-primary/30"
+              placeholder="quicksend://receive?..."
+              value={receiveDraftTicket}
+              onChange={(event) => setReceiveDraftTicket(event.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !busy && receiveDraftTicket.trim()) {
+                  previewPackage();
+                }
+              }}
             />
-          ))}
+            {error && (
+              <p className="mt-3 text-xs text-red-500 animate-in fade-in slide-in-from-top-1 text-left px-2">
+                {error}
+              </p>
+            )}
+          </div>
+        </CardContent>
+
+        <CardFooter className="flex flex-col gap-3 pt-4 pb-6 px-6 border-t border-slate-100 dark:border-zinc-800/50">
+          <Button
+            className="w-full h-12 text-base font-bold shadow-sm transition-all active:scale-[0.98]"
+            onClick={previewPackage}
+            disabled={busy || receiveDraftTicket.trim().length === 0}
+          >
+            {busy ? (
+              <>
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                Previewing...
+              </>
+            ) : (
+              "Download"
+            )}
+          </Button>
+        </CardFooter>
+      </Card>
+
+      {/* History Section - Adjusted width for better layout below the main card */}
+      {receivePackages.length > 0 && (
+        <div className="w-full max-w-5xl space-y-6">
+          <div className="flex items-center gap-3 px-1">
+            <History className="h-5 w-5 text-zinc-400" />
+            <h3 className="text-lg font-bold text-slate-700 dark:text-zinc-300">Previous Packages</h3>
+            <div className="h-px flex-1 bg-gradient-to-r from-slate-200 dark:from-zinc-800 to-transparent ml-2" />
+          </div>
+
+          <div id="receive-packages-list" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {receivePackages.map((pkg) => (
+              <div
+                key={pkg.id}
+                className="transition-transform hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <ReceivePackageCard
+                  pkg={pkg}
+                  sizeUnit={settings.sizeUnit}
+                  onOpen={() => navigate(`/receive/${pkg.id}`)}
+                />
+              </div>
+            ))}
+          </div>
         </div>
       )}
-    </section>
+    </div>
   );
 }

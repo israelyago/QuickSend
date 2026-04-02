@@ -19,12 +19,12 @@ describe("ReceivePage", () => {
     mockTauriInvoke();
   });
 
-  it("disables Preview Package when ticket is empty and enables when filled", async () => {
+  it("disables Download when ticket is empty and enables when filled", async () => {
     const user = userEvent.setup();
     renderReceivePage();
 
-    const previewButton = screen.getByRole("button", { name: "Preview Package" });
-    const ticketInput = screen.getByLabelText("Ticket");
+    const previewButton = screen.getByRole("button", { name: "Download" });
+    const ticketInput = screen.getByPlaceholderText(/quicksend:\/\/receive/i);
 
     expect(previewButton).toBeDisabled();
     expect(invoke).toHaveBeenCalledWith("clipboard_ticket");
@@ -55,8 +55,8 @@ describe("ReceivePage", () => {
 
     renderReceivePage({ includePackageRoute: true });
 
-    await user.type(screen.getByLabelText("Ticket"), "blob:flow-test");
-    await user.click(screen.getByRole("button", { name: "Preview Package" }));
+    await user.type(screen.getByPlaceholderText(/quicksend:\/\/receive/i), "blob:flow-test");
+    await user.click(screen.getByRole("button", { name: "Download" }));
 
     expect(await screen.findByTestId(PACKAGE_ROUTE_TEST_ID)).toHaveTextContent(/^recv-/);
     expect(vi.mocked(invoke)).toHaveBeenCalledWith("package_preview", {

@@ -26,12 +26,13 @@ vi.mock("@tauri-apps/plugin-opener", () => ({
 }));
 
 import { invoke } from "@tauri-apps/api/core";
-import { SendPackagePage } from "./SendPackagePage";
 import { ReceivePage } from "./ReceivePage";
+import { ReceivePackagePage } from "./ReceivePackagePage";
 import { TEST_DOWNLOAD_DIR, TEST_TRANSFER_OUTPUT_DIR } from "../test/helpers/paths";
 import { resetAppStoreForTest } from "../test/helpers/store";
 import { mockTauriInvoke } from "../test/helpers/tauri";
 import { useAppStore } from "../store/appStore";
+import { formatBytes } from "../lib/formatters";
 
 describe("Receive download UI flow", () => {
   beforeEach(() => {
@@ -71,15 +72,15 @@ describe("Receive download UI flow", () => {
       <MemoryRouter initialEntries={["/receive"]}>
         <Routes>
           <Route path="/receive" element={<ReceivePage />} />
-          <Route path="/package/:id" element={<SendPackagePage />} />
+          <Route path="/receive/:id" element={<ReceivePackagePage />} />
         </Routes>
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText("Ticket"), "blob:ticket-recv-flow");
-    await user.click(screen.getByRole("button", { name: "Preview Package" }));
+    await user.type(screen.getByPlaceholderText(/quicksend:\/\/receive/i), "blob:ticket-recv-flow");
+    await user.click(screen.getByRole("button", { name: "Download" }));
 
-    const downloadButton = await screen.findByRole("button", { name: "Download Package" });
+    const downloadButton = await screen.findByRole("button", { name: "Download All" });
     await user.click(downloadButton);
 
     expect(vi.mocked(invoke)).toHaveBeenCalledWith("package_download", {
@@ -88,7 +89,7 @@ describe("Receive download UI flow", () => {
       downloadDir: TEST_DOWNLOAD_DIR,
     });
 
-    expect(await screen.findByRole("button", { name: "Cancel download" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Cancel Download" })).toBeInTheDocument();
 
     act(() => {
       useAppStore.getState().applyProgressEvent({
@@ -99,7 +100,8 @@ describe("Receive download UI flow", () => {
       });
     });
 
-    expect(screen.getByText(/1\.0 KB \/ 2\.0 KB/i)).toBeInTheDocument();
+    expect(screen.getByText(formatBytes(1024, "jedec"))).toBeInTheDocument();
+    expect(screen.getByText(formatBytes(2048, "jedec"))).toBeInTheDocument();
 
     act(() => {
       useAppStore.getState().applyCompletedEvent({
@@ -109,8 +111,8 @@ describe("Receive download UI flow", () => {
       });
     });
 
-    expect(await screen.findByRole("button", { name: "Open files folder" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Cancel download" })).not.toBeInTheDocument();
-    expect(screen.getByText(/Status:\s*completed/i)).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Open Files" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancel Download" })).not.toBeInTheDocument();
+    expect(screen.getByText(/Download Complete!/i)).toBeInTheDocument();
   });
 });

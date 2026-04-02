@@ -88,7 +88,7 @@ export function SendPackageContent({
             <PackageFileDropzone
               isDragActive={isDragActive}
               onPrimarySelection={onSelectAdditionalFiles}
-              onSecondarySelection={() => {}}
+              onSecondarySelection={() => { }}
               variant="compact"
             />
           </div>
@@ -96,7 +96,7 @@ export function SendPackageContent({
             <PackageFileDropzone
               isDragActive={isDragActive}
               onPrimarySelection={onSelectFolder}
-              onSecondarySelection={() => {}}
+              onSecondarySelection={() => { }}
               icon={FolderPlus}
               primaryMessage="Add Folders"
               variant="compact"
@@ -141,9 +141,9 @@ export function SendPackageContent({
                   >
                     {isPreparing
                       ? `${formatBytes(
-                          file.prepareProcessedBytes ?? 0,
-                          settings.sizeUnit,
-                        )} / ${formatBytes(file.sizeBytes, settings.sizeUnit)}`
+                        file.prepareProcessedBytes ?? 0,
+                        settings.sizeUnit,
+                      )} / ${formatBytes(file.sizeBytes, settings.sizeUnit)}`
                       : formatBytes(file.sizeBytes, settings.sizeUnit)}
                   </span>
                   <button

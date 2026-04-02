@@ -15,9 +15,8 @@ export function renderReceivePage(options?: { includePackageRoute?: boolean }) {
     <MemoryRouter initialEntries={["/receive"]}>
       <Routes>
         <Route path="/receive" element={<ReceivePage />} />
-        {includePackageRoute ? <Route path="/package/:id" element={<PackageRouteProbe />} /> : null}
+        {includePackageRoute ? <Route path="/receive/:id" element={<PackageRouteProbe />} /> : null}
       </Routes>
     </MemoryRouter>,
   );
 }
-

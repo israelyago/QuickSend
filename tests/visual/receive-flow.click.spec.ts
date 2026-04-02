@@ -100,16 +100,16 @@ test("receive flow click-click: preview -> download -> completed", async ({ page
   await page.goto("/");
 
   await page.getByRole("link", { name: "Receive" }).click();
-  await page.getByLabel("Ticket").fill("blob:ticket-playwright-flow");
-  await page.getByRole("button", { name: "Preview Package" }).click();
+  await page.getByLabel("quicksend-link").fill("blob:ticket-playwright-flow");
+  await page.getByRole("button", { name: "Download" }).click();
 
-  await expect(page.getByRole("button", { name: "Download Package" })).toBeVisible();
-  await page.getByRole("button", { name: "Download Package" }).click();
+  await expect(page.getByRole("button", { name: "Download All" })).toBeVisible();
+  await page.getByRole("button", { name: "Download All" }).click();
   await expect(page.getByRole("button", { name: "Cancel download" })).toBeVisible();
 
   await page.evaluate(() => {
     (
-      window as Window & {
+      window as unknown as Window & {
         __emitMockEvent: (eventName: string, payload: unknown) => void;
       }
     ).__emitMockEvent("transfer:progress", {
@@ -120,20 +120,22 @@ test("receive flow click-click: preview -> download -> completed", async ({ page
     });
   });
 
-  await expect(page.getByText("1.0 KB / 2.0 KB")).toBeVisible();
+  await expect(page.getByText("1.0 KB")).toBeVisible();
+  await expect(page.getByText("50%")).toBeVisible();
+  await expect(page.getByText("2.0 KB")).toBeVisible();
 
-  await page.evaluate(() => {
+  await page.evaluate(({ testTransferOutputDir }) => {
     (
-      window as Window & {
+      window as unknown as Window & {
         __emitMockEvent: (eventName: string, payload: unknown) => void;
       }
     ).__emitMockEvent("transfer:completed", {
       sessionId: "recv-session-ui-1",
       packageId: "pkg-ui-1",
-      downloadDir: TEST_TRANSFER_OUTPUT_DIR,
+      downloadDir: testTransferOutputDir,
     });
-  });
+  }, { testTransferOutputDir: TEST_TRANSFER_OUTPUT_DIR });
 
-  await expect(page.getByRole("button", { name: "Open files folder" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Open Files" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Cancel download" })).toHaveCount(0);
 });

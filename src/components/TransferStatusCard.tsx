@@ -112,10 +112,10 @@ export function TransferStatusCard({
           )}
         </CardContent>
 
-        <CardFooter className="flex gap-3 pt-4 pb-6 px-6 border-t border-slate-100 dark:border-zinc-800/50 bg-slate-50/50 dark:bg-zinc-900/50">
+        <CardFooter className="flex gap-3 pt-4 pb-6 px-6 border-t border-slate-100 dark:border-zinc-800/50">
           {isFinalized ? (
             <Button
-              className="w-full font-bold h-11 text-base shadow-sm hover:shadow transition-all"
+              className="w-full h-11 text-base shadow-sm hover:shadow transition-all"
               onClick={onDone}
             >
               Upload more files

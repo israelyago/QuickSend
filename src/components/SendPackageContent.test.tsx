@@ -4,7 +4,6 @@ import { SendPackageContent } from "./SendPackageContent";
 import { type Package } from "../types/domain";
 
 const defaultProps = {
-  canEditFiles: true,
   etaSeconds: null,
   isDragActive: false,
   progressPercent: 0,
@@ -19,17 +18,15 @@ const defaultProps = {
   onCancelDownload: vi.fn(),
   onSelectAdditionalFiles: vi.fn(),
   onSelectFolder: vi.fn(),
-  setActiveMenuId: vi.fn(),
-  setActiveMenuRect: vi.fn(),
   removeFileFromPackage: vi.fn(),
-  removeFilesFromPackage: vi.fn(),
-  removePreparingFile: vi.fn(),
   formatBytes: (val: number) => `${val} B`,
   formatDuration: (sec: number) => `${sec}s`,
   isGeneratingTicket: false,
   maskedTicket: "",
   onGenerateTicket: vi.fn(),
   onCopyTicket: vi.fn(),
+  onDone: vi.fn(),
+  isFinalizing: false,
 };
 
 describe("SendPackagePage Progress Bar", () => {

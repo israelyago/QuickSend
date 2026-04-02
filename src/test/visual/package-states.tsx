@@ -2,7 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import "../../index.css";
-import { SendPackagePage } from "../../pages/SendPackagePage";
+import { ReceivePackagePage } from "../../pages/ReceivePackagePage";
 import { useAppStore } from "../../store/appStore";
 import { TEST_DOWNLOAD_DIR, TEST_TRANSFER_OUTPUT_DIR } from "../helpers/paths";
 import type { Package } from "../../types/domain";
@@ -87,7 +87,7 @@ ReactDOM.createRoot(document.getElementById("visual-root")!).render(
       <div className="mx-auto max-w-5xl">
         <MemoryRouter initialEntries={["/package/recv-visual"]}>
           <Routes>
-            <Route path="/package/:id" element={<SendPackagePage />} />
+            <Route path="/package/:id" element={<ReceivePackagePage />} />
           </Routes>
         </MemoryRouter>
       </div>
