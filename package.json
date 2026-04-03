@@ -13,8 +13,11 @@
     "test:desktop:e2e": "node scripts/packaged_e2e_theme_persist.mjs",
     "test:desktop:e2e:transfer": "node scripts/packaged_e2e_transfer.mjs",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "prepare": "is-ci || lefthook install"
   },
   "dependencies": {
     "@radix-ui/react-progress": "^1.1.7",
@@ -41,6 +44,8 @@
     "zustand": "^5.0.11"
   },
   "devDependencies": {
+    "@commitlint/cli": "^20.5.0",
+    "@commitlint/config-conventional": "^20.5.0",
     "@playwright/test": "^1.58.2",
     "@tailwindcss/vite": "^4.2.1",
     "@tauri-apps/cli": "^2",
@@ -50,15 +55,30 @@
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@types/selenium-webdriver": "^4.35.5",
+    "@eslint/js": "^9.3.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
     "@vitejs/plugin-react": "^4.6.0",
     "autoprefixer": "^10.4.27",
+    "eslint": "^9.3.0",
+    "eslint-plugin-react": "^7.35.0",
+    "eslint-plugin-react-hooks": "^5.0.0",
+    "globals": "^15.0.0",
+    "is-ci": "^4.1.0",
     "jsdom": "^29.0.1",
+    "lefthook": "^1.5.0",
     "postcss": "^8.5.8",
     "selenium-webdriver": "^4.41.0",
     "shadcn": "^4.0.7",
     "tailwindcss": "^4.2.1",
     "typescript": "~5.8.3",
+    "typescript-eslint": "^8.0.0",
     "vite": "^7.0.4",
     "vitest": "^4.1.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "lefthook"
+    ]
   }
 }

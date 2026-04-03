@@ -1,0 +1,105 @@
+name: 'CI'
+
+on:
+  push:
+    branches:
+      - main
+      - release
+  pull_request:
+
+jobs:
+  frontend:
+    name: Frontend Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: setup node
+        uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+
+      - name: setup pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: 10
+
+      - name: install dependencies
+        run: pnpm install
+
+      - name: run eslint
+        run: pnpm lint
+
+      - name: run typecheck
+        run: pnpm typecheck
+
+  backend:
+    name: Backend Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: run clippy
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+
+  frontend-tests:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: setup node
+        uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+
+      - name: setup pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: 10
+
+      - name: install dependencies
+        run: pnpm install
+
+      - name: run vitest
+        run: pnpm test:run
+
+  frontend-visual-tests:
+    name: Frontend Visual Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: setup node
+        uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+
+      - name: setup pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: 10
+
+      - name: install dependencies
+        run: pnpm install
+
+      - name: install playwright browsers
+        run: pnpm exec playwright install --with-deps
+
+      - name: run visual tests
+        run: pnpm test:visual
+
+  backend-tests:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: run tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml

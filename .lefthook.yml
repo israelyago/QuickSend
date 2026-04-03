@@ -1,0 +1,32 @@
+skip-exec: false
+skip-comments: false
+
+commit-msg:
+  commands:
+    commitlint:
+      glob: ""
+      run: pnpm exec commitlint --edit
+
+pre-commit:
+  commands:
+    clippy:
+      glob: "src-tauri/**/*.rs"
+      run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+    eslint:
+      glob: "src/**/*.{ts,tsx}"
+      run: pnpm lint
+    typecheck:
+      glob: "src/**/*.{ts,tsx}"
+      run: pnpm typecheck
+
+pre-push:
+  commands:
+    test-ui:
+      glob: "src/**/*.{ts,tsx}"
+      run: make test-ui
+    test-backend:
+      glob: "src-tauri/**/*.rs"
+      run: make test-backend
+    test-e2e:
+      glob: ""
+      run: make desktop-e2e-all

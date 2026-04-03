@@ -18,7 +18,7 @@ else \
   echo "Skipping build (--skip-build)"; \
 fi
 
-.PHONY: build-fast manual-test desktop-e2e-smoke desktop-e2e-click desktop-e2e-transfer desktop-e2e-all
+.PHONY: build-fast manual-test desktop-e2e-smoke desktop-e2e-click desktop-e2e-transfer desktop-e2e-all test test-ui test-backend lint lint-ui lint-backend
 
 build-fast:
 	cargo tauri build --debug --no-bundle
@@ -70,3 +70,39 @@ desktop-e2e-all:
 	$(BUILD_OR_SKIP); \
 	$(MAKE) --no-print-directory desktop-e2e-click ARGS=--skip-build; \
 	$(MAKE) --no-print-directory desktop-e2e-transfer ARGS=--skip-build
+
+lint-ui:
+	@set -euo pipefail; \
+	echo "Running ESLint..."; \
+	pnpm lint; \
+	echo "Running typecheck..."; \
+	pnpm typecheck
+
+lint-backend:
+	@set -euo pipefail; \
+	echo "Running clippy..."; \
+	cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+
+lint:
+	@set -euo pipefail; \
+	$(MAKE) --no-print-directory lint-ui; \
+	$(MAKE) --no-print-directory lint-backend
+
+test-ui:
+	@set -euo pipefail; \
+	echo "Running pnpm tests..."; \
+	pnpm test --run; \
+	echo "Running visual tests..."; \
+	pnpm test:visual
+
+test-backend:
+	@set -euo pipefail; \
+	echo "Running cargo tests..."; \
+	(cd src-tauri && cargo test)
+
+test:
+	@set -euo pipefail; \
+	$(MAKE) --no-print-directory test-ui; \
+	$(MAKE) --no-print-directory test-backend; \
+	echo "Running desktop e2e tests..."; \
+	$(MAKE) --no-print-directory desktop-e2e-all
