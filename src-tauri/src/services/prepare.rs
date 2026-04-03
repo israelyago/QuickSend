@@ -8,8 +8,8 @@ use tauri::{AppHandle, Emitter};
 use crate::{
     api::dto::{
         CancelResponse, PackagePrepareAddFilesResponse, PackagePrepareFinalizeResponse,
-        PackagePrepareStartResponse, PrepareFileProgress, PrepareFileStatusDto, PrepareProgressSummary,
-        PrepareSessionStatusDto, SendPrepareProgressEvent,
+        PackagePrepareStartResponse, PrepareFileProgress, PrepareFileStatusDto,
+        PrepareProgressSummary, PrepareSessionStatusDto, SendPrepareProgressEvent,
     },
     iroh::{ImportPhase, SourceFile},
     state::{
@@ -159,10 +159,9 @@ pub async fn package_prepare_add_files(
         .update_session(&prepare_session_id, |session| {
             for file in source_files {
                 let path = file.path.display().to_string();
-                let already_known = session
-                    .files
-                    .iter()
-                    .any(|existing| existing.path == path && existing.status != PrepareFileLifecycleState::Cancelled);
+                let already_known = session.files.iter().any(|existing| {
+                    existing.path == path && existing.status != PrepareFileLifecycleState::Cancelled
+                });
                 if already_known {
                     continue;
                 }
@@ -331,7 +330,11 @@ pub fn package_prepare_remove_file(
         let _ = state
             .prepare_registry
             .update_session(&prepare_session_id, |session| {
-                if let Some(file) = session.files.iter_mut().find(|file| file.file_id == file_id) {
+                if let Some(file) = session
+                    .files
+                    .iter_mut()
+                    .find(|file| file.file_id == file_id)
+                {
                     if let Some(hash) = file.hash.take() {
                         session
                             .imported_hashes
@@ -386,7 +389,9 @@ async fn ensure_prepare_worker_for_files(
         )
         .await;
     });
-    state.prepare_registry.register_task(prepare_session_id, task)?;
+    state
+        .prepare_registry
+        .register_task(prepare_session_id, task)?;
     Ok(())
 }
 
@@ -398,9 +403,8 @@ async fn run_prepare_worker(
     package_id: String,
     source_files: Vec<(String, SourceFile)>,
 ) {
-    let (progress_tx, mut progress_rx) = tokio::sync::mpsc::unbounded_channel::<
-        PrepareFileProgressUpdate,
-    >();
+    let (progress_tx, mut progress_rx) =
+        tokio::sync::mpsc::unbounded_channel::<PrepareFileProgressUpdate>();
 
     let _ = registry.transition_state(&prepare_session_id, PrepareLifecycleState::Running);
 
@@ -408,21 +412,27 @@ async fn run_prepare_worker(
     let importer_session_id = prepare_session_id.clone();
     let mut importer = tauri::async_runtime::spawn(async move {
         for (file_id, file) in source_files {
-
             if importer_registry.is_cancel_requested(&importer_session_id)
                 || importer_registry
                     .take_remove_file_request(&importer_session_id, &file_id)
                     .unwrap_or(false)
             {
                 let _ = importer_registry.update_session(&importer_session_id, |session| {
-                    if let Some(item) = session.files.iter_mut().find(|entry| entry.file_id == file_id)
+                    if let Some(item) = session
+                        .files
+                        .iter_mut()
+                        .find(|entry| entry.file_id == file_id)
                     {
                         item.status = PrepareFileLifecycleState::Cancelled;
                         item.error = None;
                     }
                 });
                 if let Some(snapshot) = importer_registry.get_session(&importer_session_id) {
-                    if let Some(item) = snapshot.files.into_iter().find(|entry| entry.file_id == file_id) {
+                    if let Some(item) = snapshot
+                        .files
+                        .into_iter()
+                        .find(|entry| entry.file_id == file_id)
+                    {
                         let _ = progress_tx.send(file_state_to_progress_update(item));
                     }
                 }
@@ -430,13 +440,21 @@ async fn run_prepare_worker(
             }
 
             let _ = importer_registry.update_session(&importer_session_id, |session| {
-                if let Some(item) = session.files.iter_mut().find(|entry| entry.file_id == file_id) {
+                if let Some(item) = session
+                    .files
+                    .iter_mut()
+                    .find(|entry| entry.file_id == file_id)
+                {
                     item.status = PrepareFileLifecycleState::Importing;
                     item.error = None;
                 }
             });
             if let Some(snapshot) = importer_registry.get_session(&importer_session_id) {
-                if let Some(item) = snapshot.files.into_iter().find(|entry| entry.file_id == file_id) {
+                if let Some(item) = snapshot
+                    .files
+                    .into_iter()
+                    .find(|entry| entry.file_id == file_id)
+                {
                     let _ = progress_tx.send(file_state_to_progress_update(item));
                 }
             }
@@ -449,8 +467,10 @@ async fn run_prepare_worker(
                 .import_file_with_progress(&file, move |phase, processed, total| {
                     let total_bytes = total.unwrap_or(0);
                     let _ = progress_registry.update_session(&progress_session_id, |session| {
-                        if let Some(item) =
-                            session.files.iter_mut().find(|entry| entry.file_id == progress_file_id)
+                        if let Some(item) = session
+                            .files
+                            .iter_mut()
+                            .find(|entry| entry.file_id == progress_file_id)
                         {
                             let next_status = match phase {
                                 ImportPhase::Importing => PrepareFileLifecycleState::Importing,
@@ -494,7 +514,10 @@ async fn run_prepare_worker(
 
                     if cancelled {
                         let _ = importer_registry.update_session(&importer_session_id, |session| {
-                            if let Some(item) = session.files.iter_mut().find(|entry| entry.file_id == file_id)
+                            if let Some(item) = session
+                                .files
+                                .iter_mut()
+                                .find(|entry| entry.file_id == file_id)
                             {
                                 item.status = PrepareFileLifecycleState::Cancelled;
                                 item.error = None;
@@ -503,7 +526,10 @@ async fn run_prepare_worker(
                         });
                     } else {
                         let _ = importer_registry.update_session(&importer_session_id, |session| {
-                            if let Some(item) = session.files.iter_mut().find(|entry| entry.file_id == file_id)
+                            if let Some(item) = session
+                                .files
+                                .iter_mut()
+                                .find(|entry| entry.file_id == file_id)
                             {
                                 item.status = PrepareFileLifecycleState::Completed;
                                 item.error = None;
@@ -524,7 +550,11 @@ async fn run_prepare_worker(
                             .unwrap_or(false);
 
                     let _ = importer_registry.update_session(&importer_session_id, |session| {
-                        if let Some(item) = session.files.iter_mut().find(|entry| entry.file_id == file_id) {
+                        if let Some(item) = session
+                            .files
+                            .iter_mut()
+                            .find(|entry| entry.file_id == file_id)
+                        {
                             if cancelled {
                                 item.status = PrepareFileLifecycleState::Cancelled;
                                 item.error = None;
@@ -538,7 +568,11 @@ async fn run_prepare_worker(
             }
 
             if let Some(snapshot) = importer_registry.get_session(&importer_session_id) {
-                if let Some(item) = snapshot.files.into_iter().find(|entry| entry.file_id == file_id) {
+                if let Some(item) = snapshot
+                    .files
+                    .into_iter()
+                    .find(|entry| entry.file_id == file_id)
+                {
                     let _ = progress_tx.send(file_state_to_progress_update(item));
                 }
             }
@@ -602,16 +636,6 @@ async fn run_prepare_worker(
         .iter()
         .filter(|file| file.status == PrepareFileLifecycleState::Completed)
         .count();
-    let failed_files = session
-        .files
-        .iter()
-        .filter(|file| file.status == PrepareFileLifecycleState::Failed)
-        .count();
-    let cancelled_files = session
-        .files
-        .iter()
-        .filter(|file| file.status == PrepareFileLifecycleState::Cancelled)
-        .count();
 
     let all_terminal = session.files.iter().all(|file| {
         matches!(
@@ -640,8 +664,6 @@ async fn run_prepare_worker(
         PrepareLifecycleState::Cancelled
     } else if completed_files > 0 {
         PrepareLifecycleState::Completed
-    } else if failed_files > 0 || cancelled_files == session.files.len() {
-        PrepareLifecycleState::Failed
     } else {
         PrepareLifecycleState::Failed
     };
@@ -802,7 +824,11 @@ fn emit_prepare_progress_event(
         .iter()
         .map(|file| file.processed_bytes)
         .sum::<u64>();
-    let total_bytes = session.files.iter().map(|file| file.total_bytes).sum::<u64>();
+    let total_bytes = session
+        .files
+        .iter()
+        .map(|file| file.total_bytes)
+        .sum::<u64>();
 
     let payload = SendPrepareProgressEvent {
         prepare_session_id: prepare_session_id.to_string(),
@@ -858,7 +884,11 @@ fn build_prepare_snapshot(
         .iter()
         .map(|file| file.processed_bytes)
         .sum::<u64>();
-    let total_bytes = session.files.iter().map(|file| file.total_bytes).sum::<u64>();
+    let total_bytes = session
+        .files
+        .iter()
+        .map(|file| file.total_bytes)
+        .sum::<u64>();
     let files = session
         .files
         .iter()
@@ -872,7 +902,9 @@ fn build_prepare_snapshot(
         .collect::<Vec<_>>();
     let done = matches!(
         status,
-        PrepareLifecycleState::Completed | PrepareLifecycleState::Failed | PrepareLifecycleState::Cancelled
+        PrepareLifecycleState::Completed
+            | PrepareLifecycleState::Failed
+            | PrepareLifecycleState::Cancelled
     );
 
     Ok(SendPrepareProgressEvent {
@@ -930,7 +962,10 @@ mod tests {
         });
 
         let flushed = batcher.flush();
-        assert_eq!(flushed.changed_file_ids, vec!["f1".to_string(), "f2".to_string()]);
+        assert_eq!(
+            flushed.changed_file_ids,
+            vec!["f1".to_string(), "f2".to_string()]
+        );
         assert_eq!(flushed.files.len(), 2);
         assert_eq!(flushed.files[0].processed_bytes, 55);
     }
@@ -1015,8 +1050,7 @@ mod tests {
 
         let _ = registry.update_session("prep-1", |session| {
             let already_known = session.files.iter().any(|existing| {
-                existing.path == new_path
-                    && existing.status != PrepareFileLifecycleState::Cancelled
+                existing.path == new_path && existing.status != PrepareFileLifecycleState::Cancelled
             });
             assert!(!already_known, "path should not be known yet");
 
@@ -1051,8 +1085,7 @@ mod tests {
         let mut accepted = false;
         let _ = registry.update_session("prep-2", |session| {
             let already_known = session.files.iter().any(|existing| {
-                existing.path == dup_path
-                    && existing.status != PrepareFileLifecycleState::Cancelled
+                existing.path == dup_path && existing.status != PrepareFileLifecycleState::Cancelled
             });
             if already_known {
                 return;
@@ -1143,10 +1176,8 @@ mod tests {
     #[test]
     fn remove_file_prunes_hash_from_imported_hashes() {
         let registry = make_prepare_registry();
-        let mut session = make_session_with_files(
-            "pkg-5",
-            &[("a.txt", "/tmp/a.txt"), ("b.txt", "/tmp/b.txt")],
-        );
+        let mut session =
+            make_session_with_files("pkg-5", &[("a.txt", "/tmp/a.txt"), ("b.txt", "/tmp/b.txt")]);
 
         let fake_hash_a = "aaaa".to_string();
         let fake_hash_b = "bbbb".to_string();
@@ -1198,10 +1229,8 @@ mod tests {
     #[test]
     fn remove_file_without_hash_leaves_imported_hashes_intact() {
         let registry = make_prepare_registry();
-        let mut session = make_session_with_files(
-            "pkg-6",
-            &[("a.txt", "/tmp/a.txt"), ("b.txt", "/tmp/b.txt")],
-        );
+        let mut session =
+            make_session_with_files("pkg-6", &[("a.txt", "/tmp/a.txt"), ("b.txt", "/tmp/b.txt")]);
         // Only b.txt finished – a.txt is still queued (no hash).
         session.files[1].hash = Some("bbbb".to_string());
         session.files[1].status = PrepareFileLifecycleState::Completed;
@@ -1278,10 +1307,8 @@ mod tests {
     #[tokio::test]
     async fn finalize_blocked_until_all_tasks_retired() {
         let registry = make_prepare_registry();
-        let session = make_session_with_files(
-            "pkg-9",
-            &[("a.txt", "/tmp/a.txt"), ("b.txt", "/tmp/b.txt")],
-        );
+        let session =
+            make_session_with_files("pkg-9", &[("a.txt", "/tmp/a.txt"), ("b.txt", "/tmp/b.txt")]);
         registry
             .insert_session("prep-f3".to_string(), session)
             .expect("insert session");
@@ -1295,7 +1322,10 @@ mod tests {
                 .expect("register task");
         }
 
-        assert!(registry.has_task("prep-f3"), "still blocked after 0 retires");
+        assert!(
+            registry.has_task("prep-f3"),
+            "still blocked after 0 retires"
+        );
         registry.retire_task("prep-f3");
         assert!(registry.has_task("prep-f3"), "still blocked after 1 retire");
         registry.retire_task("prep-f3");

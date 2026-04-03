@@ -11,12 +11,15 @@ import { useWebviewFileDrop } from "../hooks/useWebviewFileDrop";
 import { formatBytes, formatDuration } from "../lib/formatters";
 import { useFileSelectionDialog } from "../hooks/useFileSelectionDialog";
 import { useSendPrepareStats } from "../hooks/useSendPrepareStats";
+import { type Package as PackageType } from "../types/domain";
 
-export function SendPackagePage() {
-  const { id } = useParams<{ id: string }>();
+type InnerProps = {
+  pkg: PackageType;
+};
+
+function SendPackagePageInner({ pkg: packageData }: InnerProps) {
   const navigate = useNavigate();
   const [isFinalizing, setIsFinalizing] = useState(false);
-  const packages = useAppStore((state) => state.packages);
   const settings = useAppStore((state) => state.settings);
   const attachTicketToPackage = useAppStore((state) => state.attachTicketToPackage);
   const attachReceiveSession = useAppStore((state) => state.attachReceiveSession);
@@ -25,29 +28,6 @@ export function SendPackagePage() {
   const removeFileFromPackage = useAppStore((state) => state.removeFileFromPackage);
   const addFilesToPackage = useAppStore((state) => state.addFilesToPackage);
 
-  const pkg = useMemo(() => {
-    if (id === "current") {
-      return packages[0];
-    }
-    return packages.find((item) => item.id === id);
-  }, [id, packages]);
-
-  if (!pkg) {
-    return (
-      <section className="space-y-3">
-        <div className="flex items-center gap-2">
-          <Package className="h-5 w-5 text-slate-500 dark:text-zinc-400" aria-hidden="true" />
-          <h2 className="text-2xl font-semibold">Package</h2>
-        </div>
-        <p className="text-sm text-red-600">Package not found for id: {id}</p>
-      </section>
-    );
-  }
-
-  if (pkg.mode === "receive") {
-    return <Navigate to={`/receive/${id}`} replace />;
-  }
-  const packageData = pkg;
   const {
     cancelDownload,
     cancelGenerateTicket,
@@ -102,7 +82,7 @@ export function SendPackagePage() {
         setError(String(cause));
       }
     },
-    [addFilesToPackage, packageData.id],
+    [addFilesToPackage, packageData.id, setError],
   );
 
   const { isDragActive } = useWebviewFileDrop({
@@ -176,4 +156,34 @@ export function SendPackagePage() {
       </section>
     </TooltipProvider>
   );
+}
+
+export function SendPackagePage() {
+  const { id } = useParams<{ id: string }>();
+  const packages = useAppStore((state) => state.packages);
+
+  const pkg = useMemo(() => {
+    if (id === "current") {
+      return packages[0];
+    }
+    return packages.find((item) => item.id === id);
+  }, [id, packages]);
+
+  if (!pkg) {
+    return (
+      <section className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Package className="h-5 w-5 text-slate-500 dark:text-zinc-400" aria-hidden="true" />
+          <h2 className="text-2xl font-semibold">Package</h2>
+        </div>
+        <p className="text-sm text-red-600">Package not found for id: {id}</p>
+      </section>
+    );
+  }
+
+  if (pkg.mode === "receive") {
+    return <Navigate to={`/receive/${id}`} replace />;
+  }
+
+  return <SendPackagePageInner pkg={pkg} />;
 }
