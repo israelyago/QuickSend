@@ -152,7 +152,7 @@ export function ReceivePage() {
             <div className="h-px flex-1 bg-gradient-to-r from-slate-200 dark:from-zinc-800 to-transparent ml-2" />
           </div>
 
-          <div id="receive-packages-list" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div id="receive-packages-list" className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             {receivePackages.map((pkg) => (
               <div
                 key={pkg.id}
