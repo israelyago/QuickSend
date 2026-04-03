@@ -1,6 +1,6 @@
 [package]
 name = "quicksend"
-version = "0.3.4"
+version = "0.3.5"
 description = "Send files peer to peer"
 authors = ["Israel Yago Pereira"]
 edition = "2021"
