@@ -154,7 +154,6 @@ export function usePackageActions({
     }
   }, [
     attachTicketToPackage,
-    copyTicket,
     packageData.id,
     packageData.prepareSessionId,
     packageData.sourcePaths,
