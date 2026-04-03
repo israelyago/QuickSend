@@ -336,7 +336,7 @@ async fn prepare_download_session(
         },
     )?;
 
-    let output_dir = resolve_download_dir(app, download_dir)?;
+    let output_dir = resolve_download_dir(app, download_dir)?.join(format!("qs-{session_id}"));
     Ok(DownloadPreparation {
         session_id,
         package_id,

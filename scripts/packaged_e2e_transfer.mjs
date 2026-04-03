@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { spawn, spawnSync } from "node:child_process";
 import net from "node:net";
-import { mkdtemp, mkdir, rm, writeFile, access } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, writeFile, access, readdir } from "node:fs/promises";
 import { constants } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -119,7 +119,6 @@ async function run() {
   const downloadsDir = path.join(homeDir, "Downloads");
   const senderInputDir = path.join(root, "sender-input");
   const senderFile = path.join(senderInputDir, "e2e-transfer.txt");
-  const expectedOutFile = path.join(downloadsDir, "e2e-transfer.txt");
   const senderTmpDir = path.join(root, "sender-tmp");
   const receiverTmpDir = path.join(root, "receiver-tmp");
 
@@ -242,6 +241,12 @@ async function run() {
       5_000,
     );
 
+    const entries = await readdir(downloadsDir);
+    const qsDir = entries.find((e) => e.startsWith("qs-"));
+    if (!qsDir) {
+      throw new Error(`no qs-* download directory found in ${downloadsDir}`);
+    }
+    const expectedOutFile = path.join(downloadsDir, qsDir, "e2e-transfer.txt");
     await waitForFile(expectedOutFile, 5_000);
 
     console.log("Packaged desktop transfer E2E passed: receiver downloaded sender file.");
