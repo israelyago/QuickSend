@@ -7,8 +7,10 @@ Powered by [iroh](https://github.com/n0-computer/iroh), [Tauri](https://tauri.ap
 
 ![Send page](docs/images/1.png)
 ![Sending one big file](docs/images/2.png)
+
+In another computer far away in the other side of the galaxy:
+
 ![Receiving a file](docs/images/3.png)
-![Settings page](docs/images/4.png)
 
 
 ## 🔄 Basic Flow
